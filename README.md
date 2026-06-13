@@ -2,7 +2,7 @@
 
 Journal Metrics Workflow は現在、旧 `metrics_excel.py` から切り離して再構築中です。新ワークフローのメイン CLI は `journal_metrics.py` です。
 
-Phase 1 時点で利用可能な新 CLI コマンドは、空テンプレート Excel を生成する `template` のみです。`fetch-journal` / `convert` / `enrich-db` は Phase 2 以降で実装予定です。
+Phase 2D 時点で利用可能な新 CLI コマンドは、空テンプレート Excel を生成する `template` と、mock adapter による `fetch-journal` です。`convert` / `enrich-db` は Phase 3 以降で実装予定です。
 
 旧 `metrics_excel.py` は legacy reference です。旧 SEALIB/SINTA 2 シート方式の参考・既存運用用として残しますが、新 Journal Metrics Workflow の本線ではありません。旧ファイルは移動・削除せず、直接拡張しない方針です。
 
@@ -17,7 +17,7 @@ research-tools/
 ├── sinta-full-cli-v3/                 # git clone（取得ツール・別リポジトリ）
 │   └── sinta-full-cli-v3.py
 └── sealib-journal-metrics-tools/      # 本ツール（独立リポジトリ）
-    ├── journal_metrics.py             # 新 CLI（Phase 1: template のみ）
+    ├── journal_metrics.py             # 新 CLI（Phase 2D: template / mock fetch-journal）
     ├── metrics_excel.py
     ├── requirements.txt
     └── README.md
@@ -36,15 +36,18 @@ python3 -m venv .venv
 pip install -r requirements.txt   # openpyxl
 ```
 
-- 新 CLI `journal_metrics.py` が Phase 1 で必要とするのは `openpyxl` のみです。SINTA 側の依存は `sinta-full-cli-v3` 側で別途インストールします。
+- 新 CLI `journal_metrics.py` が現時点で必要とするのは `openpyxl` のみです。SINTA 側の依存は `sinta-full-cli-v3` 側で別途インストールします。
 
-## Current command (Phase 1)
+## Current commands (Phase 2D)
 
 ```bash
 .venv/bin/python journal_metrics.py template --output journal_metrics.xlsx
+.venv/bin/python journal_metrics.py fetch-journal --input journal_metrics.xlsx --adapter mock
 ```
 
-このコマンドは `README` / `main` / `journal` / `convert` の 4 シートを持つ空テンプレート Excel を生成します。Phase 1 では外部 CLI、DB、adapter は呼びません。`status` 列は作成しますが、自動処理は行いません。
+`template` は `README` / `main` / `journal` / `convert` の 4 シートを持つ空テンプレート Excel を生成します。`fetch-journal --adapter mock` は mock adapter の固定レスポンスだけを使い、`main` シートの対象行から `journal` シートへ候補を書き込みます。
+
+Phase 2D 時点では、本番 SINTA / SEALIB / Thai Tier adapter には未接続です。本番データ投入はまだ不要です。現段階は mock adapter によるパイプライン検証であり、SINTA 未確認データ等を `main` シートへ投入するのは実 adapter 接続後に行います。
 
 ## Legacy / Previous workflow
 

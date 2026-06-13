@@ -16,6 +16,9 @@ env/
 __pycache__/
 *.pyc
 
+# Generated workbooks
+journal_metrics.xlsx
+
 # Tool caches
 .pytest_cache/
 .mypy_cache/

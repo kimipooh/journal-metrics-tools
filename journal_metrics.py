@@ -7,8 +7,10 @@ import argparse
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from adapters.mock import fetch_journal as fetch_mock_journal
+from journal_mapper import map_envelope_to_journal_rows
 from journal_mapper import row_to_journal_values
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
@@ -37,6 +39,13 @@ JOURNAL_HEADERS = [
     "fetched_at",
     "raw_json",
 ]
+
+MAIN_STATUS_BY_ENVELOPE_STATUS = {
+    "fetched": "fetched",
+    "multiple_candidates": "multiple_candidates",
+    "not_found": "not_found",
+    "adapter_error": "adapter_error",
+}
 
 CONVERT_HEADERS = [
     "id",
@@ -103,6 +112,29 @@ def append_journal_rows(
     return len(rows)
 
 
+def header_index(ws: Worksheet) -> dict[str, int]:
+    return {
+        str(cell.value): index
+        for index, cell in enumerate(ws[1])
+        if cell.value is not None
+    }
+
+
+def cell_value(row: Sequence[object], index: dict[str, int], header: str) -> object:
+    column_index = index.get(header)
+    if column_index is None:
+        return None
+    if column_index >= len(row):
+        return None
+    return row[column_index].value
+
+
+def text_value(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
 def build_template_workbook() -> Workbook:
     wb = Workbook()
 
@@ -129,6 +161,65 @@ def template_command(args: argparse.Namespace) -> None:
     print(f"Created template workbook: {output_path}")
 
 
+def fetch_journal_command(args: argparse.Namespace) -> None:
+    if args.adapter != "mock":
+        raise ValueError("Phase 2D only supports --adapter mock")
+
+    input_path = Path(args.input)
+    wb = load_workbook(input_path)
+    if "main" not in wb.sheetnames:
+        raise ValueError("Workbook does not contain a main sheet")
+    if "journal" not in wb.sheetnames:
+        raise ValueError("Workbook does not contain a journal sheet")
+
+    main_ws = wb["main"]
+    journal_ws = wb["journal"]
+    main_headers = header_index(main_ws)
+
+    for required_header in ["status", "journal_name", "name"]:
+        if required_header not in main_headers:
+            raise ValueError(f"main sheet is missing required header: {required_header}")
+
+    processed_rows = 0
+    appended_rows = 0
+
+    for excel_row_number, row in enumerate(
+        main_ws.iter_rows(min_row=2),
+        start=2,
+    ):
+        status = text_value(cell_value(row, main_headers, "status")).lower()
+        if status not in {"", "pending"}:
+            continue
+
+        query = text_value(cell_value(row, main_headers, "journal_name"))
+        if not query:
+            query = text_value(cell_value(row, main_headers, "name"))
+        if not query:
+            continue
+
+        envelope = fetch_mock_journal(query)
+        journal_rows = map_envelope_to_journal_rows(
+            envelope,
+            main_row_id=excel_row_number,
+        )
+        appended_rows += append_journal_rows(
+            journal_ws,
+            journal_rows,
+            JOURNAL_HEADERS,
+        )
+        main_ws.cell(
+            row=excel_row_number,
+            column=main_headers["status"] + 1,
+            value=MAIN_STATUS_BY_ENVELOPE_STATUS[envelope["status"]],
+        )
+        processed_rows += 1
+
+    wb.save(input_path)
+    print(f"Processed main rows: {processed_rows}")
+    print(f"Appended journal rows: {appended_rows}")
+    print(f"Adapter: {args.adapter}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Journal Metrics Workflow tools.",
@@ -145,6 +236,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output .xlsx path. Existing files are overwritten.",
     )
     template.set_defaults(func=template_command)
+
+    fetch_journal = subparsers.add_parser(
+        "fetch-journal",
+        help="Fetch journal candidates into the journal sheet.",
+    )
+    fetch_journal.add_argument(
+        "--input",
+        required=True,
+        help="Input .xlsx path to update in place.",
+    )
+    fetch_journal.add_argument(
+        "--adapter",
+        required=True,
+        choices=["mock"],
+        help="Adapter to use. Phase 2D supports only mock.",
+    )
+    fetch_journal.set_defaults(func=fetch_journal_command)
 
     return parser
 
