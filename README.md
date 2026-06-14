@@ -2,7 +2,7 @@
 
 Journal Metrics Workflow は現在、旧 `metrics_excel.py` から切り離して再構築中です。新ワークフローのメイン CLI は `journal_metrics.py` です。
 
-Phase 2D 時点で利用可能な新 CLI コマンドは、空テンプレート Excel を生成する `template` と、mock adapter による `fetch-journal` です。`convert` / `enrich-db` は Phase 3 以降で実装予定です。
+Phase 3D 時点で利用可能な新 CLI コマンドは、空テンプレート Excel を生成する `template` と、mock / SEALIB adapter による `fetch-journal` です。`convert` / `enrich-db` は後続 Phase で実装予定です。
 
 旧 `metrics_excel.py` は legacy reference です。旧 SEALIB/SINTA 2 シート方式の参考・既存運用用として残しますが、新 Journal Metrics Workflow の本線ではありません。旧ファイルは移動・削除せず、直接拡張しない方針です。
 
@@ -17,7 +17,7 @@ research-tools/
 ├── sinta-full-cli-v3/                 # git clone（取得ツール・別リポジトリ）
 │   └── sinta-full-cli-v3.py
 └── sealib-journal-metrics-tools/      # 本ツール（独立リポジトリ）
-    ├── journal_metrics.py             # 新 CLI（Phase 2D: template / mock fetch-journal）
+    ├── journal_metrics.py             # 新 CLI（Phase 3D: template / mock・SEALIB fetch-journal）
     ├── metrics_excel.py
     ├── requirements.txt
     └── README.md
@@ -38,16 +38,20 @@ pip install -r requirements.txt   # openpyxl
 
 - 新 CLI `journal_metrics.py` が現時点で必要とするのは `openpyxl` のみです。SINTA 側の依存は `sinta-full-cli-v3` 側で別途インストールします。
 
-## Current commands (Phase 2D)
+## Current commands (Phase 3D)
 
 ```bash
 .venv/bin/python journal_metrics.py template --output journal_metrics.xlsx
 .venv/bin/python journal_metrics.py fetch-journal --input journal_metrics.xlsx --adapter mock
+.venv/bin/python journal_metrics.py fetch-journal --input journal_metrics.xlsx --adapter sealib --db-path /path/to/sealib.sqlite
+.venv/bin/python journal_metrics.py fetch-journal --input journal_metrics.xlsx --adapter sealib --db-path /path/to/sealib.sqlite --country Indonesia
 ```
 
 `template` は `README` / `main` / `journal` / `convert` の 4 シートを持つ空テンプレート Excel を生成します。`fetch-journal --adapter mock` は mock adapter の固定レスポンスだけを使い、`main` シートの対象行から `journal` シートへ候補を書き込みます。
 
-Phase 2D 時点では、本番 SINTA / SEALIB / Thai Tier adapter には未接続です。本番データ投入はまだ不要です。現段階は mock adapter によるパイプライン検証であり、SINTA 未確認データ等を `main` シートへ投入するのは実 adapter 接続後に行います。
+`fetch-journal --adapter sealib` は SEALIB SQLite DB を read-only 接続で参照し、`header.name` / `header.o_name` の部分一致検索だけを行います。任意の `--country` を指定した場合は、SEALIB adapter 側で `header.country` を絞り込みます。
+
+現時点の SEALIB adapter は `journal_metrics` テーブル参照、grade 取得、grade 正規化をまだ行いません。実 SEALIB DB での検証は DB パス確認後に行います。本番データ投入はまだ慎重に扱い、まずは少数のテスト行で `journal` シートへの追記結果と `main.status` 更新を確認してください。
 
 ## Legacy / Previous workflow
 
