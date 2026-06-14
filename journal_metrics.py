@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import json
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Sequence
 
 from adapters.mock import fetch_journal as fetch_mock_journal
 from adapters.sealib import fetch_journal as fetch_sealib_journal
@@ -49,15 +51,27 @@ MAIN_STATUS_BY_ENVELOPE_STATUS = {
 }
 
 CONVERT_HEADERS = [
-    "id",
-    "journal_type",
+    "main_row_id",
+    "metric_source",
+    "metric_country",
+    "sealib_name",
+    "sealib_o_name",
+    "sealib_id",
     "grade",
-    "external_journal_id",
-    "profile_url",
-    "journal_name",
-    "affiliation",
+    "url",
     "note",
     "convert_status",
+]
+
+PROGRAM2_TSV_HEADERS = [
+    "metric_source",
+    "metric_country",
+    "sealib_name",
+    "sealib_o_name",
+    "sealib_id",
+    "grade",
+    "url",
+    "note",
 ]
 
 README_ROWS = [
@@ -113,6 +127,27 @@ def append_journal_rows(
     return len(rows)
 
 
+def append_convert_rows(
+    ws: Worksheet,
+    rows: list[dict],
+    headers: list[str],
+) -> int:
+    for row in rows:
+        ws.append([row.get(header) for header in headers])
+    return len(rows)
+
+
+def reset_convert_sheet(ws: Worksheet) -> None:
+    if ws.max_row > 1:
+        ws.delete_rows(2, ws.max_row - 1)
+    if ws.max_column > len(CONVERT_HEADERS):
+        ws.delete_cols(len(CONVERT_HEADERS) + 1, ws.max_column - len(CONVERT_HEADERS))
+    for column, header in enumerate(CONVERT_HEADERS, start=1):
+        ws.cell(row=1, column=column, value=header)
+    apply_header_style(ws)
+    set_reasonable_widths(ws, [CONVERT_HEADERS])
+
+
 def header_index(ws: Worksheet) -> dict[str, int]:
     return {
         str(cell.value): index
@@ -134,6 +169,106 @@ def text_value(value: object) -> str:
     if value is None:
         return ""
     return str(value).strip()
+
+
+def row_to_dict(headers: list[str], values: Sequence[object]) -> dict[str, object]:
+    return {
+        header: values[index] if index < len(values) else None
+        for index, header in enumerate(headers)
+    }
+
+
+def tsv_value(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+
+def normalized_main_row_id(value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    text = text_value(value)
+    if not text:
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
+def nullable_text(value: object) -> str | None:
+    text = text_value(value)
+    return text or None
+
+
+def raw_json_object(value: object) -> dict[str, Any]:
+    if not isinstance(value, str) or not value.strip():
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return parsed
+
+
+def extract_metric_country(journal_row: dict) -> str | None:
+    raw_candidate = raw_json_object(journal_row.get("raw_json"))
+    return nullable_text(raw_candidate.get("country"))
+
+
+def build_note(
+    *,
+    external_journal_id: object,
+    publisher: object,
+    eissn: object,
+) -> str | None:
+    parts = []
+    for key, value in [
+        ("external_id", external_journal_id),
+        ("affiliation", publisher),
+        ("eissn", eissn),
+    ]:
+        text = nullable_text(value)
+        if text is not None:
+            parts.append(f"{key}={text}")
+    if not parts:
+        return None
+    return "; ".join(parts)
+
+
+def generate_convert_rows(
+    main_row: dict,
+    journal_row: dict,
+) -> dict | None:
+    """Build one convert row from an accepted journal row."""
+    if text_value(journal_row.get("fetch_status")).lower() != "ok":
+        return None
+
+    raw_candidate = raw_json_object(journal_row.get("raw_json"))
+
+    return {
+        "main_row_id": journal_row.get("main_row_id"),
+        "metric_source": journal_row.get("journal_type"),
+        "metric_country": extract_metric_country(journal_row),
+        # TODO: Fill these from enrich-db/main once SEALIB enrichment is implemented.
+        "sealib_name": None,
+        "sealib_o_name": None,
+        "sealib_id": None,
+        "grade": journal_row.get("grade"),
+        "url": journal_row.get("profile_url"),
+        "note": build_note(
+            external_journal_id=raw_candidate.get("external_journal_id"),
+            publisher=raw_candidate.get("publisher"),
+            eissn=raw_candidate.get("eissn"),
+        ),
+        "convert_status": "ready",
+    }
 
 
 def build_template_workbook() -> Workbook:
@@ -231,6 +366,87 @@ def fetch_journal_command(args: argparse.Namespace) -> None:
     print(f"Adapter: {args.adapter}")
 
 
+def convert_command(args: argparse.Namespace) -> None:
+    input_path = Path(args.input)
+    wb = load_workbook(input_path)
+    for sheet_name in ["main", "journal", "convert"]:
+        if sheet_name not in wb.sheetnames:
+            raise ValueError(f"Workbook does not contain a {sheet_name} sheet")
+
+    main_ws = wb["main"]
+    journal_ws = wb["journal"]
+    convert_ws = wb["convert"]
+
+    main_headers = [str(cell.value) for cell in main_ws[1] if cell.value is not None]
+    journal_headers = [str(cell.value) for cell in journal_ws[1] if cell.value is not None]
+
+    main_rows_by_id: dict[int, dict] = {}
+    for excel_row_number, values in enumerate(
+        main_ws.iter_rows(min_row=2, values_only=True),
+        start=2,
+    ):
+        main_row = row_to_dict(main_headers, values)
+        main_row["main_row_id"] = excel_row_number
+        main_rows_by_id[excel_row_number] = main_row
+
+    reset_convert_sheet(convert_ws)
+
+    processed_journal_rows = 0
+    appended_convert_rows = 0
+    for values in journal_ws.iter_rows(min_row=2, values_only=True):
+        processed_journal_rows += 1
+        journal_row = row_to_dict(journal_headers, values)
+        main_row_id = normalized_main_row_id(journal_row.get("main_row_id"))
+        if main_row_id is None:
+            continue
+        main_row = main_rows_by_id.get(main_row_id)
+        if main_row is None:
+            continue
+        convert_row = generate_convert_rows(main_row, journal_row)
+        if convert_row is None:
+            continue
+        appended_convert_rows += append_convert_rows(
+            convert_ws,
+            [convert_row],
+            CONVERT_HEADERS,
+        )
+
+    wb.save(input_path)
+    print(f"processed_journal_rows = {processed_journal_rows}")
+    print(f"appended_convert_rows = {appended_convert_rows}")
+
+
+def export_tsv_command(args: argparse.Namespace) -> None:
+    input_path = Path(args.input)
+    output_path = Path(args.output)
+    wb = load_workbook(input_path, read_only=True)
+    if "convert" not in wb.sheetnames:
+        raise ValueError("Workbook does not contain a convert sheet")
+
+    convert_ws = wb["convert"]
+    convert_headers = [str(cell.value) for cell in convert_ws[1] if cell.value is not None]
+    missing_headers = [header for header in PROGRAM2_TSV_HEADERS + ["convert_status"] if header not in convert_headers]
+    if missing_headers:
+        raise ValueError(f"convert sheet is missing required headers: {', '.join(missing_headers)}")
+
+    exported_rows = 0
+    with output_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+        writer.writerow(PROGRAM2_TSV_HEADERS)
+        for values in convert_ws.iter_rows(min_row=2, values_only=True):
+            convert_row = row_to_dict(convert_headers, values)
+            if text_value(convert_row.get("convert_status")).lower() != "ready":
+                continue
+            writer.writerow([
+                tsv_value(convert_row.get(header))
+                for header in PROGRAM2_TSV_HEADERS
+            ])
+            exported_rows += 1
+
+    print(f"exported_tsv_rows = {exported_rows}")
+    print(f"output = {output_path}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Journal Metrics Workflow tools.",
@@ -272,6 +488,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional SEALIB country filter used only with --adapter sealib.",
     )
     fetch_journal.set_defaults(func=fetch_journal_command)
+
+    convert = subparsers.add_parser(
+        "convert",
+        help="Generate convert sheet rows from accepted journal rows.",
+    )
+    convert.add_argument(
+        "--input",
+        required=True,
+        help="Input .xlsx path to update in place.",
+    )
+    convert.set_defaults(func=convert_command)
+
+    export_tsv = subparsers.add_parser(
+        "export-tsv",
+        help="Export ready convert rows as a Program2 TSV file.",
+    )
+    export_tsv.add_argument(
+        "--input",
+        required=True,
+        help="Input .xlsx path to read.",
+    )
+    export_tsv.add_argument(
+        "--output",
+        required=True,
+        help="Output .tsv path. Existing files are overwritten.",
+    )
+    export_tsv.set_defaults(func=export_tsv_command)
 
     return parser
 

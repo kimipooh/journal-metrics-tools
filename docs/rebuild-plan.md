@@ -148,6 +148,7 @@ SEALIB 等（取込は SEALIB 側 import-data-ext が実施）
 ### Phase 4 — `enrich-db`
 - DB adapter（`SEALIBAdapter`）を実装。`read_sealib_rows` の read-only 方式を流用。
 - main の `id`/`name`/`o_name` のいずれかをキーに欠損列を補完。
+- **位置付け（Phase 3F）**: `enrich-db` は `sealib_name` / `sealib_o_name` / `sealib_id` 等の補完を行う**補助工程**であり、`ref_id` / `ref_name` の最終的な参照整合性保証は `enrich-db` ではなく SEALIB 側 Program2（§8.1、`docs/program2-resolution-strategy.md`）が投入時点に担う。
 - **検証**: 一部列が空の main に対し、SEALIB DB から `name`/`o_name`/`issn` が補完されること。DB が無くても他コマンドが動くこと。
 
 ## 7. アダプタ contract（fetch-journal / enrich-db 共通の考え方）
@@ -169,8 +170,25 @@ SEALIB 等（取込は SEALIB 側 import-data-ext が実施）
   | `profile_url` | `url` |
   | `note` | `note` |
   - `external_journal_id` / `affiliation` は `journal_metrics` に列なし → **既定: `note` へ集約**（SEALIB 無改修）。代替: スキーマ拡張は別タスク。
+  - **[Phase 3F]** 上記の `id`→`ref_id` / `journal_name`→`ref_name` 直結マッピングは (A) 直結方式の想定であり、**Phase 3F で不採用と決定**した。正式な投入方式は §8.1 を参照（`convert` は `ref_id`/`ref_name` を確定しない）。本表自体は Phase 4A で再設計する。
 - `eissn` は SEALIB `header` に列が無く、ツール側保持のみ（DB へ同期しない）。
 - 退避によりファイルパス/呼び出しが変わる（旧を直接叩く運用があれば周知）。
+
+## 8.1. Program2投入方式の正式決定（Phase 3F）
+
+Phase 3F（Phase 3E の SEALIB REST API v1 / OAI-PMH 2.0 整合性調査を踏襲）で、SEALIB側 Program2（`journal_metrics` 投入）の方式を **(B) 名前再解決方式** に正式決定した。詳細は `docs/program2-resolution-strategy.md` を参照。
+
+- **採用方式: (B) 名前再解決方式**
+  - `convert` は `ref_id` / `ref_name` を確定しない。
+  - Program2 が投入時点の SEALIB DB で `header` を再解決する（`sealib_name` / `sealib_o_name` の完全一致検索、`sealib_id` は補助）。
+  - `ref_id` = 解決後の `header.id`
+  - `ref_name` = 解決後の `header.name`
+
+- **(A) 直結方式（`convert.id`→`ref_id`、`convert.journal_name`→`ref_name`を無条件にそのまま投入する方式）は不採用**。`header.id` は SEALIB のフルビルドで変わりうるため、直結すると `ref_id` が既に存在しない ID を指して孤立するリスクがある。孤立した `ref_id` が残っていても REST API `?include=metrics` はエラーを返さず `metrics: []` を返すだけのため、指標がサイレントに表示されなくなる問題に運用上気づきにくい。これら2点が不採用の主な理由である。
+
+- **enrich-db の位置付け**: `enrich-db`（§6 Phase 4）は `main` へ `sealib_name` / `sealib_o_name` / `sealib_id` 等を補完する**補助工程**であり、`ref_id` / `ref_name` の最終的な参照整合性保証は `enrich-db` ではなく **SEALIB 側 Program2 が投入時点に担う**。
+
+§4 の `convert` 列構成（`id, journal_type, grade, external_journal_id, profile_url, journal_name, affiliation, note, convert_status`）は上記決定に基づき **Phase 4A** で再設計する。
 
 ## 9. 推奨方針
 
@@ -179,3 +197,9 @@ SEALIB 等（取込は SEALIB 側 import-data-ext が実施）
 3. **adapter contract（§7）を最初に固める**ことで SINTA / Thai Tier を差し替え可能にする。
 4. `convert → DB` は SEALIB 既存 `journal_metrics` スキーマ維持（extra は `note` 集約）を既定とし、スキーマ拡張は別タスク候補。
 5. 実装は Codex、Claude は設計・整理・レビュー・リリース判定を担当。
+
+## 10. 関連ドキュメント
+
+- `docs/adapter-contract.md` — fetch-journal / enrich-db アダプタ契約
+- `docs/sealib-api-oai-compatibility-audit.md` — SEALIB REST API v1 / OAI-PMH 2.0 と journal_metrics 投入の整合性調査（Phase 3E）
+- `docs/program2-resolution-strategy.md` — Program2投入方式の設計判断。(B) 名前再解決方式を正式採用（Phase 3F、§8.1）
