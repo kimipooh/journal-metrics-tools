@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from adapters.mock import fetch_journal as fetch_mock_journal
+from adapters.sealib import fetch_journal as fetch_sealib_journal
 from journal_mapper import map_envelope_to_journal_rows
 from journal_mapper import row_to_journal_values
 from openpyxl import Workbook, load_workbook
@@ -162,8 +163,8 @@ def template_command(args: argparse.Namespace) -> None:
 
 
 def fetch_journal_command(args: argparse.Namespace) -> None:
-    if args.adapter != "mock":
-        raise ValueError("Phase 2D only supports --adapter mock")
+    if args.adapter == "sealib" and not args.db_path:
+        raise SystemExit("ERROR: --db-path is required when --adapter sealib")
 
     input_path = Path(args.input)
     wb = load_workbook(input_path)
@@ -197,7 +198,17 @@ def fetch_journal_command(args: argparse.Namespace) -> None:
         if not query:
             continue
 
-        envelope = fetch_mock_journal(query)
+        if args.adapter == "mock":
+            envelope = fetch_mock_journal(query)
+        elif args.adapter == "sealib":
+            envelope = fetch_sealib_journal(
+                query,
+                db_path=args.db_path,
+                country=args.country,
+            )
+        else:
+            raise ValueError(f"Unsupported adapter: {args.adapter}")
+
         journal_rows = map_envelope_to_journal_rows(
             envelope,
             main_row_id=excel_row_number,
@@ -249,8 +260,16 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_journal.add_argument(
         "--adapter",
         required=True,
-        choices=["mock"],
-        help="Adapter to use. Phase 2D supports only mock.",
+        choices=["mock", "sealib"],
+        help="Adapter to use.",
+    )
+    fetch_journal.add_argument(
+        "--db-path",
+        help="SEALIB SQLite DB path. Required when --adapter sealib.",
+    )
+    fetch_journal.add_argument(
+        "--country",
+        help="Optional SEALIB country filter used only with --adapter sealib.",
     )
     fetch_journal.set_defaults(func=fetch_journal_command)
 
