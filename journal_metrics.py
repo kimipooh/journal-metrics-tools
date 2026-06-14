@@ -184,6 +184,30 @@ def tsv_value(value: object) -> str:
     return str(value)
 
 
+def note_looks_like_json(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return False
+    return (
+        (text.startswith("{") and text.endswith("}"))
+        or (text.startswith("[") and text.endswith("]"))
+    )
+
+
+def note_has_key_value_format(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return True
+    parts = [part.strip() for part in text.split(";")]
+    for part in parts:
+        if not part or "=" not in part:
+            return False
+        key, _value = part.split("=", 1)
+        if not key.strip():
+            return False
+    return True
+
+
 def normalized_main_row_id(value: object) -> int | None:
     if value is None:
         return None
@@ -447,6 +471,72 @@ def export_tsv_command(args: argparse.Namespace) -> None:
     print(f"output = {output_path}")
 
 
+def validate_tsv_command(args: argparse.Namespace) -> None:
+    input_path = Path(args.input)
+    errors: list[str] = []
+    warnings: list[str] = []
+    rows = 0
+
+    with input_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.reader(handle, delimiter="\t")
+        try:
+            headers = next(reader)
+        except StopIteration:
+            errors.append("header row is missing")
+            headers = []
+
+        if headers and headers != PROGRAM2_TSV_HEADERS:
+            errors.append(
+                "header must exactly match: "
+                + "\t".join(PROGRAM2_TSV_HEADERS)
+            )
+
+        for line_number, row in enumerate(reader, start=2):
+            rows += 1
+            if len(row) != len(PROGRAM2_TSV_HEADERS):
+                errors.append(
+                    f"row {line_number}: expected {len(PROGRAM2_TSV_HEADERS)} columns, got {len(row)}"
+                )
+                continue
+
+            row_data = dict(zip(PROGRAM2_TSV_HEADERS, row, strict=True))
+            for required_header in ["metric_source", "metric_country", "grade"]:
+                if not text_value(row_data.get(required_header)):
+                    errors.append(
+                        f"row {line_number}: {required_header} is required"
+                    )
+
+            if not any(
+                text_value(row_data.get(header))
+                for header in ["sealib_name", "sealib_o_name", "sealib_id"]
+            ):
+                errors.append(
+                    f"row {line_number}: one of sealib_name, sealib_o_name, sealib_id is required"
+                )
+
+            note = text_value(row_data.get("note"))
+            if note:
+                if note_looks_like_json(note):
+                    warnings.append(
+                        f"row {line_number}: note looks like raw JSON"
+                    )
+                elif not note_has_key_value_format(note):
+                    warnings.append(
+                        f"row {line_number}: note should use key=value; key=value format"
+                    )
+
+    for error in errors:
+        print(f"ERROR: {error}")
+    for warning in warnings:
+        print(f"WARNING: {warning}")
+    print(f"rows = {rows}")
+    print(f"errors = {len(errors)}")
+    print(f"warnings = {len(warnings)}")
+
+    if errors:
+        raise SystemExit(1)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Journal Metrics Workflow tools.",
@@ -515,6 +605,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output .tsv path. Existing files are overwritten.",
     )
     export_tsv.set_defaults(func=export_tsv_command)
+
+    validate_tsv = subparsers.add_parser(
+        "validate-tsv",
+        help="Validate a Program2 TSV file without writing to a database.",
+    )
+    validate_tsv.add_argument(
+        "--input",
+        required=True,
+        help="Input .tsv path to validate.",
+    )
+    validate_tsv.set_defaults(func=validate_tsv_command)
 
     return parser
 
