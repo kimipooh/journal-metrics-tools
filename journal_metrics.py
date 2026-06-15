@@ -299,6 +299,17 @@ def build_note(
     return "; ".join(parts)
 
 
+def convert_sealib_id(
+    *,
+    metric_source: str,
+    main_row: dict,
+    journal_row: dict,
+) -> str:
+    if metric_source.upper() == "SEALIB":
+        return text_value(journal_row.get("external_journal_id"))
+    return text_value(main_row.get("id"))
+
+
 def generate_convert_rows(
     main_row: dict,
     journal_row: dict,
@@ -308,6 +319,7 @@ def generate_convert_rows(
         return None
 
     raw_candidate = raw_json_object(journal_row.get("raw_json"))
+    metric_source = text_value(journal_row.get("journal_type"))
 
     return {
         "main_row_id": journal_row.get("main_row_id"),
@@ -315,7 +327,11 @@ def generate_convert_rows(
         "metric_country": extract_metric_country(journal_row),
         "sealib_name": text_value(main_row.get("name")),
         "sealib_o_name": text_value(main_row.get("o_name")),
-        "sealib_id": text_value(journal_row.get("external_journal_id")),
+        "sealib_id": convert_sealib_id(
+            metric_source=metric_source,
+            main_row=main_row,
+            journal_row=journal_row,
+        ),
         "grade": journal_row.get("grade"),
         "url": journal_row.get("profile_url"),
         "note": build_note(
@@ -324,7 +340,7 @@ def generate_convert_rows(
             eissn=raw_candidate.get("eissn"),
         ),
         "convert_status": decide_convert_status(
-            text_value(journal_row.get("journal_type")),
+            metric_source,
             nullable_text(journal_row.get("grade")),
         ),
     }

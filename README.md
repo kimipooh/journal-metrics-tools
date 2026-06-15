@@ -59,7 +59,7 @@ pip install -r requirements.txt   # openpyxl
 
 現時点の SEALIB adapter は `journal_metrics` テーブル参照、grade 取得、grade 正規化をまだ行いません。実 SEALIB DB での検証は DB パス確認後に行います。本番データ投入はまだ慎重に扱い、まずは少数のテスト行で `journal` シートへの追記結果と `main.status` 更新を確認してください。
 
-`convert` は `journal.fetch_status == ok` の行から Program2 TSV 用の行を再生成します。Program2 の名前再解決に必要な `sealib_name` は `main.name`、`sealib_o_name` は `main.o_name`、`sealib_id` は `journal.external_journal_id` から設定します。欠損値は空欄として扱い、`convert` ではエラーにしません。
+`convert` は `journal.fetch_status == ok` の行から Program2 TSV 用の行を再生成します。Program2 の名前再解決に必要な `sealib_name` は `main.name`、`sealib_o_name` は `main.o_name` から設定します。`sealib_id` は SEALIB `header.id` 用の補助値です。`metric_source == SEALIB` の場合のみ `journal.external_journal_id`（SEALIB header.id）を使い、SINTA / MOCK / THAI_TIER など外部 source では `main.id` を使います。SINTA の `journal_id` は `sealib_id` には入れず、`note` の `external_id=...` として保持します。欠損値は空欄として扱い、`convert` ではエラーにしません。
 
 `convert_status` は source role と grade の有無で決まります。`SINTA` / `THAI_TIER` は grade があれば `ready`、grade が空なら `hold` です。`SEALIB` / `MOCK` は参照・テスト用の source として `skipped` になり、`export-tsv` には出ません。`export-tsv` は `ready` 行だけを Program2 TSV に出力します。
 

@@ -14,7 +14,7 @@
   ```
   main_row_id, metric_source, metric_country, sealib_name, sealib_o_name, sealib_id, grade, url, note, convert_status
   ```
-- `convert`シートは **`ref_id`/`ref_name`を持たない**。Program2が投入時点のSEALIB DBで再解決し、自ら確定する。再解決に必要な `sealib_name` / `sealib_o_name` / `sealib_id` は convert 生成時に `main` / `journal` の既存値から補完する。
+- `convert`シートは **`ref_id`/`ref_name`を持たない**。Program2が投入時点のSEALIB DBで再解決し、自ら確定する。再解決に必要な `sealib_name` / `sealib_o_name` は常に `main` 由来、`sealib_id` は SEALIB `header.id` 由来の補助値として補完する。SINTA 等の外部 source の `external_journal_id` は SEALIB ID ではないため `sealib_id` へ入れない。
 - `metric_country`は`journal.raw_json`内のcandidate `country`（adapter contract §4.1。例: SINTAなら`"ID"`）から取得し、SEALIB `header.country`（LCコード）は使わない。
 - `note`は`external_journal_id`/`affiliation`/`eissn`等を`key=value; key=value`形式で集約する（raw_json生ダンプは行わない）。
 - Program2向けTSVは、`convert_status=="ready"`の行から`metric_source`〜`note`の8列（中央8列）をそのまま射影出力する。`SEALIB` / `MOCK` は `skipped`、metrics sourceでgradeが空の行は `hold` になり、TSVには出力されない。
@@ -89,10 +89,10 @@ main_row_id, metric_source, metric_country, sealib_name, sealib_o_name, sealib_i
 | `metric_country` | 指標ソース側の国コード（`header.country`とは別符号系） | 必須 | `journal.raw_json`内candidate `country`（§5） | INSERT値 | `metric_country` | される（`country`） |
 | `sealib_name` | SEALIB `header.name`照合用の名称 | 必須 | `main.name` | `header.name`との完全一致検索（主キー） | なし（`ref_name`はProgram2が解決後`header.name`から設定） | されない |
 | `sealib_o_name` | SEALIB `header.o_name`照合用の名称（fallback） | 任意 | `main.o_name` | `sealib_name`で0件/複数件時のfallback完全一致検索 | なし | されない |
-| `sealib_id` | SEALIB `header.id`の参照値（補助） | 任意 | `journal.external_journal_id` | 0件時fallback照合（`WHERE id=:sealib_id`）、複数候補disambiguation、名前不一致warningのトリガー | なし（`ref_id`はProgram2が解決後`header.id`から設定。直結しない） | されない |
+| `sealib_id` | SEALIB `header.id`の参照値（補助） | 任意 | `metric_source=="SEALIB"` では `journal.external_journal_id`、それ以外では `main.id` | 0件時fallback照合（`WHERE id=:sealib_id`）、複数候補disambiguation、名前不一致warningのトリガー | なし（`ref_id`はProgram2が解決後`header.id`から設定。直結しない） | されない |
 | `grade` | 正規化済み評価/等級 | 任意 | `journal.grade`（fetch-journal側で`journal_type`別正規化済み） | INSERT値 | `grade` | される（`grade`） |
 | `url` | プロフィール/詳細ページURL | 任意 | `journal.profile_url` | INSERT値 | `url` | される（`url`） |
-| `note` | 集約された補足情報（固定書式、§6） | 任意 | `journal.external_journal_id` / `journal.affiliation` / `main.eissn` 等から生成（Phase 4B） | INSERT値 | `note` | される（`note`） |
+| `note` | 集約された補足情報（固定書式、§6） | 任意 | `journal.external_journal_id` / `journal.affiliation` / `main.eissn` 等から生成（Phase 4B）。SINTA `journal_id` 等の外部IDはここに `external_id=...` として残す | INSERT値 | `note` | される（`note`） |
 | `convert_status` | convertワークフロー状態（`ready`/`hold`/`skipped`。`exported`/`imported`は将来語彙） | 必須 | metric_sourceの役割とgrade有無から決定 | 使わない（TSVに出力しない） | なし | されない |
 
 ---
@@ -104,6 +104,7 @@ main_row_id, metric_source, metric_country, sealib_name, sealib_o_name, sealib_i
 - `ref_id` = 解決後の`header.id`
 - `ref_name` = 解決後の`header.name`
 - `sealib_id`は0件時fallback・複数候補disambiguation・名前不一致warning用の補助情報であり、`ref_id`へ直結しない。
+- `sealib_id` は SEALIB `header.id` を表す。SINTA `journal_id`、Thai Tier 側ID、MOCK ID などの外部ソースIDは `journal.external_journal_id` / `note.external_id` として保持し、`sealib_id` には入れない。
 
 詳細フローは`docs/program2-resolution-strategy.md` §2.1（sealib `journal-metrics-semi-auto-design.md` §6.5 原典）を参照。
 
@@ -127,7 +128,7 @@ main_row_id, metric_source, metric_country, sealib_name, sealib_o_name, sealib_i
 
 | キー | 出どころ | 必須/任意 |
 | --- | --- | --- |
-| `external_id` | `journal.external_journal_id` | 任意（値があれば含める） |
+| `external_id` | `journal.external_journal_id`（SINTA `journal_id` 等、外部ソース側ID） | 任意（値があれば含める） |
 | `affiliation` | `journal.affiliation` | 任意 |
 | `eissn` | `main.eissn` | 任意 |
 | `external_name` | `journal.journal_name`（候補側名称。`sealib_name`と大きく異なる場合のみ含めることを想定） | 任意・Phase 4Bで採否確定 |
@@ -197,9 +198,9 @@ external_id=12345; affiliation=Universitas Indonesia; eissn=8765-4321
 
 ## 8. `enrich-db` との関係
 
-- `sealib_name`/`sealib_o_name`/`sealib_id`の出どころは`main.name`/`main.o_name`/`journal.external_journal_id`。Phase 6A 時点では、fetch-journal の結果に SEALIB ID が `journal.external_journal_id` として入っている前提で convert 生成時に補完する。
+- `sealib_name`/`sealib_o_name`の出どころは常に`main.name`/`main.o_name`。`sealib_id`は SEALIB `header.id` の補助値であり、`metric_source=="SEALIB"` の場合のみ `journal.external_journal_id` から補完する。SINTA / Thai Tier / MOCK 等では `journal.external_journal_id` は外部ソース側IDなので `sealib_id` には使わず、`main.id` から補完する。
 - `enrich-db`は将来の補助工程であり、Phase 6A の convert 生成では DB 再検索を行わない。`ref_id`/`ref_name`の最終的な参照整合性保証は`enrich-db`ではなく**Program2が投入時点に担う**（`docs/program2-resolution-strategy.md` §7、`docs/rebuild-plan.md` §8.1）。
-- `main.name` / `main.o_name` / `journal.external_journal_id` が空の場合、対応する `sealib_*` 値は空欄にする。convert 生成ではエラーにしないが、Program2 dry-run で `unmatched` / `invalid` になり得る。
+- `main.name` / `main.o_name` / `main.id` が空の場合、対応する `sealib_*` 値は空欄にする。convert 生成ではエラーにしないが、Program2 dry-run で `unmatched` / `invalid` になり得る。
 
 ---
 

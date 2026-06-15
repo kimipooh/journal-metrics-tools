@@ -143,7 +143,7 @@ SEALIB 等（取込は SEALIB 側 import-data-ext が実施）
 
 ### Phase 3 — `convert`
 - main↔journal の確定（採用候補選択）から convert 行を生成。`convert_status` でゲート。
-- `sealib_name` / `sealib_o_name` / `sealib_id` は `main.name` / `main.o_name` / `journal.external_journal_id` から補完する。欠損時は空欄とし、convert ではエラーにしない。
+- `sealib_name` / `sealib_o_name` は `main.name` / `main.o_name` から補完する。`sealib_id` は SEALIB `header.id` の補助値であり、`metric_source=="SEALIB"` では `journal.external_journal_id`、それ以外の外部 source では `main.id` から補完する。SINTA `journal_id` 等の外部IDは `note` の `external_id=...` に集約し、`sealib_id` には入れない。欠損時は空欄とし、convert ではエラーにしない。
 - `convert_status` は source role と grade の有無で決定する。`SINTA` / `THAI_TIER` かつ grade 非空のみ `ready`、grade空は `hold`、`SEALIB` / `MOCK` / 未知sourceは `skipped`。
 - TSV/SQL を出力（DB 投入物）。grade 正規化を再利用。
 - **検証**: convert シート + TSV が生成され、確定行のみ含まれること。SEALIB `journal_metrics` へのマッピング（§8）が成立すること。

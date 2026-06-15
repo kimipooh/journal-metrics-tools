@@ -72,7 +72,7 @@ SEALIB DB（`header`テーブル）に対する検索・照合用adapter。`adap
 
 ### 3.2 metrics sourceではない
 
-`journal_metrics` に投入する `grade` / `url` / `note` 等のペイロードを持たない（§2.2）。`convert.sealib_name` / `sealib_o_name` / `sealib_id` はProgram2の**照合キー**（`main.name` / `main.o_name` / `journal.external_journal_id` から補完、`docs/convert-sheet-redesign.md` §3）であり、SEALIB adapterの `journal_type=="SEALIB"` という値そのものとは独立した概念。SEALIB adapterで取得した `external_journal_id`（=`header.id`）は `sealib_id` の補完に使えるが、それは「SEALIB行をProgram2投入対象にする理由」にはならない。
+`journal_metrics` に投入する `grade` / `url` / `note` 等のペイロードを持たない（§2.2）。`convert.sealib_name` / `sealib_o_name` / `sealib_id` はProgram2の**照合キー**であり、`sealib_name` / `sealib_o_name` は常に `main.name` / `main.o_name` から補完する。`sealib_id` は SEALIB `header.id` の補助値で、SEALIB adapter行では `journal.external_journal_id`（=`header.id`）、外部 metrics source行では `main.id` から補完する。SINTA `journal_id` 等の外部IDは `note.external_id` に集約し、`sealib_id` には入れない。SEALIB adapterで取得した `external_journal_id`（=`header.id`）は `sealib_id` の補完に使えるが、それは「SEALIB行をProgram2投入対象にする理由」にはならない。
 
 ### 3.3 convert_statusをreadyにすべきか
 
