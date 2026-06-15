@@ -2,7 +2,7 @@
 
 Journal Metrics Workflow は現在、旧 `metrics_excel.py` から切り離して再構築中です。新ワークフローのメイン CLI は `journal_metrics.py` です。
 
-Phase 3D 時点で利用可能な新 CLI コマンドは、空テンプレート Excel を生成する `template` と、mock / SEALIB adapter による `fetch-journal` です。`convert` / `enrich-db` は後続 Phase で実装予定です。
+Phase 7C 時点で利用可能な新 CLI コマンドは、空テンプレート Excel を生成する `template`、mock / SEALIB / SINTA adapter による `fetch-journal`、`convert`、`export-tsv`、`validate-tsv` です。`enrich-db` は後続 Phase で実装予定です。
 
 旧 `metrics_excel.py` は legacy reference です。旧 SEALIB/SINTA 2 シート方式の参考・既存運用用として残しますが、新 Journal Metrics Workflow の本線ではありません。旧ファイルは移動・削除せず、直接拡張しない方針です。
 
@@ -17,7 +17,7 @@ research-tools/
 ├── sinta-full-cli-v3/                 # git clone（取得ツール・別リポジトリ）
 │   └── sinta-full-cli-v3.py
 └── sealib-journal-metrics-tools/      # 本ツール（独立リポジトリ）
-    ├── journal_metrics.py             # 新 CLI（Phase 3D: template / mock・SEALIB fetch-journal）
+    ├── journal_metrics.py             # 新 CLI（template / mock・SEALIB・SINTA fetch-journal）
     ├── metrics_excel.py
     ├── requirements.txt
     └── README.md
@@ -38,13 +38,15 @@ pip install -r requirements.txt   # openpyxl
 
 - 新 CLI `journal_metrics.py` が現時点で必要とするのは `openpyxl` のみです。SINTA 側の依存は `sinta-full-cli-v3` 側で別途インストールします。
 
-## Current commands (Phase 3D)
+## Current commands (Phase 7C)
 
 ```bash
 .venv/bin/python journal_metrics.py template --output journal_metrics.xlsx
 .venv/bin/python journal_metrics.py fetch-journal --input journal_metrics.xlsx --adapter mock
 .venv/bin/python journal_metrics.py fetch-journal --input journal_metrics.xlsx --adapter sealib --db-path /path/to/sealib.sqlite
 .venv/bin/python journal_metrics.py fetch-journal --input journal_metrics.xlsx --adapter sealib --db-path /path/to/sealib.sqlite --country Indonesia
+.venv/bin/python journal_metrics.py fetch-journal --input journal_metrics.xlsx --adapter sinta --sinta-command ../sinta-full-cli-v3/sinta-full-cli-v3.py
+.venv/bin/python journal_metrics.py fetch-journal --input journal_metrics.xlsx --adapter sinta --sinta-command ../sinta-full-cli-v3/sinta-full-cli-v3.py --sinta-python ../sinta-full-cli-v3/.venv/bin/python
 ```
 
 `template` は `README` / `main` / `journal` / `convert` の 4 シートを持つ空テンプレート Excel を生成します。`fetch-journal --adapter mock` は mock adapter の固定レスポンスだけを使い、`main` シートの対象行から `journal` シートへ候補を書き込みます。
@@ -52,6 +54,8 @@ pip install -r requirements.txt   # openpyxl
 `main.journal_name` は外部ソース上の候補名・確認対象名として保持します。`main.search_query` は SINTA / Thai Tier / mock などの外部 adapter に渡す検索文字列です。外部 adapter は `search_query` を優先し、空の場合のみ移行補助として `journal_name` を使います。`name` には fallback しません。既存 workbook に `search_query` 列がない場合も、外部 adapter は `journal_name` があれば従来データを検索できます。
 
 `fetch-journal --adapter sealib` は SEALIB SQLite DB を read-only 接続で参照し、DB照合用の `name`、空なら `o_name` を検索に使います。SEALIB adapter は `search_query` と `journal_name` を使いません。任意の `--country` を指定した場合は、SEALIB adapter 側で `header.country` を絞り込みます。
+
+`fetch-journal --adapter sinta` は別リポジトリの `sinta-full-cli-v3.py` を subprocess で呼び出します。`--sinta-command` は必須で、SINTA CLI のスクリプトパスだけを指定します。SINTA CLI 用に別 venv を使う場合は `--sinta-python` を指定できます。検索キーは `main.search_query` を優先し、空の場合のみ移行補助として `main.journal_name` を使います。`main.name` には fallback しません。
 
 現時点の SEALIB adapter は `journal_metrics` テーブル参照、grade 取得、grade 正規化をまだ行いません。実 SEALIB DB での検証は DB パス確認後に行います。本番データ投入はまだ慎重に扱い、まずは少数のテスト行で `journal` シートへの追記結果と `main.status` 更新を確認してください。
 

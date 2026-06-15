@@ -11,6 +11,7 @@ from typing import Any, Iterable, Sequence
 
 from adapters.mock import fetch_journal as fetch_mock_journal
 from adapters.sealib import fetch_journal as fetch_sealib_journal
+from adapters.sinta import fetch_journal as fetch_sinta_journal
 from journal_mapper import map_envelope_to_journal_rows
 from journal_mapper import row_to_journal_values
 from openpyxl import Workbook, load_workbook
@@ -358,6 +359,8 @@ def template_command(args: argparse.Namespace) -> None:
 def fetch_journal_command(args: argparse.Namespace) -> None:
     if args.adapter == "sealib" and not args.db_path:
         raise SystemExit("ERROR: --db-path is required when --adapter sealib")
+    if args.adapter == "sinta" and not args.sinta_command:
+        raise SystemExit("ERROR: --sinta-command is required when --adapter sinta")
 
     input_path = Path(args.input)
     wb = load_workbook(input_path)
@@ -387,7 +390,7 @@ def fetch_journal_command(args: argparse.Namespace) -> None:
 
         query = query_for_adapter(row, main_headers, args.adapter)
         if not query:
-            if args.adapter == "sealib":
+            if args.adapter in {"sealib", "sinta"}:
                 main_ws.cell(
                     row=excel_row_number,
                     column=main_headers["status"] + 1,
@@ -402,6 +405,13 @@ def fetch_journal_command(args: argparse.Namespace) -> None:
                 query,
                 db_path=args.db_path,
                 country=args.country,
+            )
+        elif args.adapter == "sinta":
+            envelope = fetch_sinta_journal(
+                query,
+                command=args.sinta_command,
+                python=args.sinta_python,
+                timeout=args.sinta_timeout,
             )
         else:
             raise ValueError(f"Unsupported adapter: {args.adapter}")
@@ -604,7 +614,7 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_journal.add_argument(
         "--adapter",
         required=True,
-        choices=["mock", "sealib"],
+        choices=["mock", "sealib", "sinta"],
         help="Adapter to use.",
     )
     fetch_journal.add_argument(
@@ -614,6 +624,20 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_journal.add_argument(
         "--country",
         help="Optional SEALIB country filter used only with --adapter sealib.",
+    )
+    fetch_journal.add_argument(
+        "--sinta-command",
+        help="SINTA CLI script path. Required when --adapter sinta.",
+    )
+    fetch_journal.add_argument(
+        "--sinta-python",
+        help="Python interpreter used to run the SINTA CLI. Defaults to the adapter's sys.executable.",
+    )
+    fetch_journal.add_argument(
+        "--sinta-timeout",
+        type=int,
+        default=180,
+        help="SINTA CLI subprocess timeout in seconds. Used only with --adapter sinta.",
     )
     fetch_journal.set_defaults(func=fetch_journal_command)
 
