@@ -49,9 +49,15 @@ pip install -r requirements.txt   # openpyxl
 
 `template` は `README` / `main` / `journal` / `convert` の 4 シートを持つ空テンプレート Excel を生成します。`fetch-journal --adapter mock` は mock adapter の固定レスポンスだけを使い、`main` シートの対象行から `journal` シートへ候補を書き込みます。
 
-`fetch-journal --adapter sealib` は SEALIB SQLite DB を read-only 接続で参照し、`header.name` / `header.o_name` の部分一致検索だけを行います。任意の `--country` を指定した場合は、SEALIB adapter 側で `header.country` を絞り込みます。
+`main.journal_name` は外部ソース上の候補名・確認対象名として保持します。`main.search_query` は SINTA / Thai Tier / mock などの外部 adapter に渡す検索文字列です。外部 adapter は `search_query` を優先し、空の場合のみ移行補助として `journal_name` を使います。`name` には fallback しません。既存 workbook に `search_query` 列がない場合も、外部 adapter は `journal_name` があれば従来データを検索できます。
+
+`fetch-journal --adapter sealib` は SEALIB SQLite DB を read-only 接続で参照し、DB照合用の `name`、空なら `o_name` を検索に使います。SEALIB adapter は `search_query` と `journal_name` を使いません。任意の `--country` を指定した場合は、SEALIB adapter 側で `header.country` を絞り込みます。
 
 現時点の SEALIB adapter は `journal_metrics` テーブル参照、grade 取得、grade 正規化をまだ行いません。実 SEALIB DB での検証は DB パス確認後に行います。本番データ投入はまだ慎重に扱い、まずは少数のテスト行で `journal` シートへの追記結果と `main.status` 更新を確認してください。
+
+`convert` は `journal.fetch_status == ok` の行から Program2 TSV 用の行を再生成します。Program2 の名前再解決に必要な `sealib_name` は `main.name`、`sealib_o_name` は `main.o_name`、`sealib_id` は `journal.external_journal_id` から設定します。欠損値は空欄として扱い、`convert` ではエラーにしません。
+
+`convert_status` は source role と grade の有無で決まります。`SINTA` / `THAI_TIER` は grade があれば `ready`、grade が空なら `hold` です。`SEALIB` / `MOCK` は参照・テスト用の source として `skipped` になり、`export-tsv` には出ません。`export-tsv` は `ready` 行だけを Program2 TSV に出力します。
 
 ## Legacy / Previous workflow
 

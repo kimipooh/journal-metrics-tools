@@ -60,7 +60,7 @@ raw_json
 | `note` | adapter からの補足情報（自由記述） | 任意 | 不明時は `null` | 直接対応列なし → `raw_json` に保持（`journal.note` 列の追加は本書スコープ外の将来検討事項） |
 
 - JSON 上の空値は **`null`** を用いる（`""` ではない）。
-- `journal.raw_json` には **candidate オブジェクト全体**（上記フィールドすべて）を JSON 文字列として保存する。直接対応列がないフィールド（`issn`/`eissn`/`country`/`note`）はこの `raw_json` 経由でのみ保持される。
+- `journal.raw_json` には **candidate オブジェクト全体**（上記フィールドすべて）を JSON 文字列として保存する。直接対応列がないフィールド（`issn`/`eissn`/`country`/`note`）はこの `raw_json` 経由でのみ保持される。fetch-journal はトレーサビリティのため、候補行の `raw_json` に実際に adapter へ渡した `query` も保存する。
 
 ### 4.2 候補と journal 行の対応関係（main_row_id）
 
@@ -68,7 +68,7 @@ raw_json
 - `journal.main_row_id` で `main` 行と紐づける。複数候補が存在する場合は、同一 `main_row_id` を持つ `journal` シート上の行順で `envelope.candidates` 配列内の順序を保持する。
 - **adapter の candidate オブジェクト（§4.1）には `main_row_id` を含めない**。adapter は呼び出し元の `main` 行を意識しない。
 - `main_row_id` は **fetch-journal（Excel 書き込み層）が付与する**。fetch-journal は呼び出し元の `main` 行（`main_row_id`）を把握しており、`envelope.candidates` の配列順に `journal` シートへ行を追記する。
-- `envelope.query` は、fetch-journal が呼び出し時に渡した検索キーをそのまま返す値であり、`main_row_id` の代替ではなく、結果を呼び出し元と対応付けるためのトレーサビリティ情報として保持する。
+- `envelope.query` は、fetch-journal が呼び出し時に渡した検索キーをそのまま返す値であり、`main_row_id` の代替ではなく、結果を呼び出し元と対応付けるためのトレーサビリティ情報として保持する。外部 adapter は `main.search_query` を優先し、空の場合のみ移行補助として `main.journal_name` を使う。`main.name` には fallback しない。SEALIB adapter は DB照合用として `main.name`、空なら `main.o_name` を使い、`search_query` / `journal_name` は使わない。
 - **candidate_rank（将来拡張候補）**: 現時点では `candidate_rank` 列は採用しない。複数候補の順序は `journal` シート上の行順で十分とみなす。Phase 1 の `journal` シート（`journal_metrics.py` の `JOURNAL_HEADERS`）にも `candidate_rank` 列は存在しない。候補順位やスコア順を明示的に列として保持する必要が生じた場合のみ、将来タスクで `candidate_rank` 列の追加を検討する。
 
 ### 4.3 envelope（adapter 戻り値全体）
@@ -83,7 +83,7 @@ raw_json
 }
 ```
 
-- `query` は通常 `main.journal_name`（空なら `main.name`）。fetch-journal が `main_row_id` と紐付けるためのトレーサビリティ用途。
+- `query` は実際に adapter へ渡した検索文字列。外部 adapter では `main.search_query`、空なら `main.journal_name`。SEALIB adapter では `main.name`、空なら `main.o_name`。fetch-journal が `main_row_id` と紐付けるためのトレーサビリティ用途。
 - `candidates` は 0 件以上の配列。
 
 ### 4.4 status 語彙

@@ -26,6 +26,7 @@ MAIN_HEADERS = [
     "issn",
     "eissn",
     "journal_name",
+    "search_query",
     "note",
     "status",
 ]
@@ -48,6 +49,13 @@ MAIN_STATUS_BY_ENVELOPE_STATUS = {
     "multiple_candidates": "multiple_candidates",
     "not_found": "not_found",
     "adapter_error": "adapter_error",
+}
+
+METRIC_SOURCE_ROLES = {
+    "SINTA": "metrics",
+    "THAI_TIER": "metrics",
+    "SEALIB": "reference",
+    "MOCK": "test",
 }
 
 CONVERT_HEADERS = [
@@ -78,7 +86,7 @@ README_ROWS = [
     ("Section", "Description"),
     ("Purpose", "Journal Metrics Workflow Phase 1 template workbook."),
     ("Usage", "python journal_metrics.py template --output journal_metrics.xlsx"),
-    ("main", "Human-edited input sheet. The status column is created but not processed automatically."),
+    ("main", "Human-edited input sheet. search_query is used by external adapters; SEALIB uses name/o_name."),
     ("journal", "Placeholder for fetched journal candidates in later phases."),
     ("convert", "Placeholder for confirmed rows prepared for later export or database import."),
     ("Phase 1 limits", "No external CLI, database, adapter, fetch-journal, convert, or enrich-db is called."),
@@ -169,6 +177,30 @@ def text_value(value: object) -> str:
     if value is None:
         return ""
     return str(value).strip()
+
+
+def metric_source_role(source: str) -> str:
+    return METRIC_SOURCE_ROLES.get(source.upper(), "unknown")
+
+
+def decide_convert_status(metric_source: str, grade: str | None) -> str:
+    role = metric_source_role(metric_source)
+    if role == "metrics":
+        return "ready" if text_value(grade) else "hold"
+    return "skipped"
+
+
+def query_for_adapter(row: Sequence[object], index: dict[str, int], adapter: str) -> str:
+    if adapter == "sealib":
+        query_headers = ["name", "o_name"]
+    else:
+        query_headers = ["search_query", "journal_name"]
+
+    for header in query_headers:
+        query = text_value(cell_value(row, index, header))
+        if query:
+            return query
+    return ""
 
 
 def row_to_dict(headers: list[str], values: Sequence[object]) -> dict[str, object]:
@@ -280,10 +312,9 @@ def generate_convert_rows(
         "main_row_id": journal_row.get("main_row_id"),
         "metric_source": journal_row.get("journal_type"),
         "metric_country": extract_metric_country(journal_row),
-        # TODO: Fill these from enrich-db/main once SEALIB enrichment is implemented.
-        "sealib_name": None,
-        "sealib_o_name": None,
-        "sealib_id": None,
+        "sealib_name": text_value(main_row.get("name")),
+        "sealib_o_name": text_value(main_row.get("o_name")),
+        "sealib_id": text_value(journal_row.get("external_journal_id")),
         "grade": journal_row.get("grade"),
         "url": journal_row.get("profile_url"),
         "note": build_note(
@@ -291,7 +322,10 @@ def generate_convert_rows(
             publisher=raw_candidate.get("publisher"),
             eissn=raw_candidate.get("eissn"),
         ),
-        "convert_status": "ready",
+        "convert_status": decide_convert_status(
+            text_value(journal_row.get("journal_type")),
+            nullable_text(journal_row.get("grade")),
+        ),
     }
 
 
@@ -336,7 +370,7 @@ def fetch_journal_command(args: argparse.Namespace) -> None:
     journal_ws = wb["journal"]
     main_headers = header_index(main_ws)
 
-    for required_header in ["status", "journal_name", "name"]:
+    for required_header in ["status"]:
         if required_header not in main_headers:
             raise ValueError(f"main sheet is missing required header: {required_header}")
 
@@ -351,10 +385,14 @@ def fetch_journal_command(args: argparse.Namespace) -> None:
         if status not in {"", "pending"}:
             continue
 
-        query = text_value(cell_value(row, main_headers, "journal_name"))
+        query = query_for_adapter(row, main_headers, args.adapter)
         if not query:
-            query = text_value(cell_value(row, main_headers, "name"))
-        if not query:
+            if args.adapter == "sealib":
+                main_ws.cell(
+                    row=excel_row_number,
+                    column=main_headers["status"] + 1,
+                    value="adapter_error",
+                )
             continue
 
         if args.adapter == "mock":

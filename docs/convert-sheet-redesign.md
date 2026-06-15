@@ -14,10 +14,10 @@
   ```
   main_row_id, metric_source, metric_country, sealib_name, sealib_o_name, sealib_id, grade, url, note, convert_status
   ```
-- `convert`シートは **`ref_id`/`ref_name`を持たない**。Program2が投入時点のSEALIB DBで再解決し、自ら確定する。
+- `convert`シートは **`ref_id`/`ref_name`を持たない**。Program2が投入時点のSEALIB DBで再解決し、自ら確定する。再解決に必要な `sealib_name` / `sealib_o_name` / `sealib_id` は convert 生成時に `main` / `journal` の既存値から補完する。
 - `metric_country`は`journal.raw_json`内のcandidate `country`（adapter contract §4.1。例: SINTAなら`"ID"`）から取得し、SEALIB `header.country`（LCコード）は使わない。
 - `note`は`external_journal_id`/`affiliation`/`eissn`等を`key=value; key=value`形式で集約する（raw_json生ダンプは行わない）。
-- Program2向けTSVは、`convert_status=="ready"`の行から`metric_source`〜`note`の8列（中央8列）をそのまま射影出力する。
+- Program2向けTSVは、`convert_status=="ready"`の行から`metric_source`〜`note`の8列（中央8列）をそのまま射影出力する。`SEALIB` / `MOCK` は `skipped`、metrics sourceでgradeが空の行は `hold` になり、TSVには出力されない。
 
 ---
 
@@ -87,13 +87,13 @@ main_row_id, metric_source, metric_country, sealib_name, sealib_o_name, sealib_i
 | `main_row_id` | この行の元になった`main`シート行（Excel行番号）への参照 | 必須 | convert生成時に対象`main`行のExcel行番号を設定 | 使わない（TSVに出力しない） | なし | されない |
 | `metric_source` | 指標ソース識別子（例: `SINTA`） | 必須 | `journal.journal_type` | `DELETE FROM journal_metrics WHERE metric_source=:src`のスコープ指定＋INSERT値 | `metric_source` | される（`source`） |
 | `metric_country` | 指標ソース側の国コード（`header.country`とは別符号系） | 必須 | `journal.raw_json`内candidate `country`（§5） | INSERT値 | `metric_country` | される（`country`） |
-| `sealib_name` | SEALIB `header.name`照合用の名称 | 必須 | `main.name`（enrich-dbで補完される場合あり） | `header.name`との完全一致検索（主キー） | なし（`ref_name`はProgram2が解決後`header.name`から設定） | されない |
+| `sealib_name` | SEALIB `header.name`照合用の名称 | 必須 | `main.name` | `header.name`との完全一致検索（主キー） | なし（`ref_name`はProgram2が解決後`header.name`から設定） | されない |
 | `sealib_o_name` | SEALIB `header.o_name`照合用の名称（fallback） | 任意 | `main.o_name` | `sealib_name`で0件/複数件時のfallback完全一致検索 | なし | されない |
-| `sealib_id` | SEALIB `header.id`の参照値（補助） | 任意 | `main.id`（enrich-dbで補完） | 0件時fallback照合（`WHERE id=:sealib_id`）、複数候補disambiguation、名前不一致warningのトリガー | なし（`ref_id`はProgram2が解決後`header.id`から設定。直結しない） | されない |
+| `sealib_id` | SEALIB `header.id`の参照値（補助） | 任意 | `journal.external_journal_id` | 0件時fallback照合（`WHERE id=:sealib_id`）、複数候補disambiguation、名前不一致warningのトリガー | なし（`ref_id`はProgram2が解決後`header.id`から設定。直結しない） | されない |
 | `grade` | 正規化済み評価/等級 | 任意 | `journal.grade`（fetch-journal側で`journal_type`別正規化済み） | INSERT値 | `grade` | される（`grade`） |
 | `url` | プロフィール/詳細ページURL | 任意 | `journal.profile_url` | INSERT値 | `url` | される（`url`） |
 | `note` | 集約された補足情報（固定書式、§6） | 任意 | `journal.external_journal_id` / `journal.affiliation` / `main.eissn` 等から生成（Phase 4B） | INSERT値 | `note` | される（`note`） |
-| `convert_status` | convertワークフロー状態（`ready`/`exported`/`imported`/`skipped`） | 必須 | convert生成ロジック（初期値`ready`） | 使わない（TSVに出力しない） | なし | されない |
+| `convert_status` | convertワークフロー状態（`ready`/`hold`/`skipped`。`exported`/`imported`は将来語彙） | 必須 | metric_sourceの役割とgrade有無から決定 | 使わない（TSVに出力しない） | なし | されない |
 
 ---
 
@@ -156,7 +156,7 @@ external_id=12345; affiliation=Universitas Indonesia; eissn=8765-4321
 
 | `journal.fetch_status` | 変換可否 | 説明 |
 | --- | --- | --- |
-| `ok`（候補1件） | 変換対象 | `convert`行を自動生成可能。`convert_status="ready"` |
+| `ok`（候補1件） | 変換対象 | `convert`行を自動生成可能。`convert_status`はsource roleとgrade有無で決定 |
 | `multiple`（候補複数） | 人によるレビュー後のみ | 複数`journal`行のうちどれを採用するか人が選ぶまで変換しない |
 | `none` | 変換しない | 候補データなし |
 | `error` | 変換しない | 取得失敗。再取得が必要 |
@@ -164,14 +164,24 @@ external_id=12345; affiliation=Universitas Indonesia; eissn=8765-4321
 ### 7.1 `main.status` / `journal.fetch_status` / `convert_status` の関係
 
 - `main.status`: `fetch-journal`実行後、`MAIN_STATUS_BY_ENVELOPE_STATUS`（`journal_metrics.py`）により`fetched`/`multiple_candidates`/`not_found`/`adapter_error`が設定される。convert生成後に`main.status`を`converted`へ更新するか（`docs/rebuild-plan.md` §4の語彙案に`converted`あり）はPhase 4Bで検討。
-- `journal.fetch_status`: 上表の通り、convert対象選別の主条件。
-- `convert_status`: 生成後のワークフロー状態（`ready`/`exported`/`imported`/`skipped`）。
+- `journal.fetch_status`: 上表の通り、convert行を生成するかどうかの主条件。
+- `convert_status`: 生成後のワークフロー状態（`ready`/`hold`/`skipped`。`exported`/`imported`は将来語彙）。
 
-### 7.2 `fetch_status == "multiple"` 時の選択メカニズム
+### 7.2 `convert_status` 決定ルール
 
-`fetch_status == "multiple"`の場合、複数`journal`行から1件を選ぶ人手の判断が必要になる。本書では`CONVERT_HEADERS`への`selected`列追加は**採用しない**（§7.3）。代わりに、`JOURNAL_HEADERS`へ`selected`（1/0）相当の列を追加する案をPhase 4Bの検討候補として記載する（`CONVERT_HEADERS`のスコープ外）。
+| 条件 | `convert_status` | 意味 |
+| --- | --- | --- |
+| metrics source（`SINTA`, `THAI_TIER`）かつ `grade` 非空 | `ready` | Program2 TSV 出力対象 |
+| metrics source（`SINTA`, `THAI_TIER`）かつ `grade` 空 | `hold` | grade 補完待ち |
+| reference source（`SEALIB`） | `skipped` | SEALIB DB照合・E2E確認用。Program2投入対象外 |
+| test source（`MOCK`） | `skipped` | テスト用。Program2投入対象外 |
+| 未知 source | `skipped` | 安全側デフォルト |
 
-### 7.3 検討した列・採否（タスク指定の「必要に応じて検討」項目）
+### 7.3 `fetch_status == "multiple"` 時の選択メカニズム
+
+`fetch_status == "multiple"`の場合、複数`journal`行から1件を選ぶ人手の判断が必要になる。本書では`CONVERT_HEADERS`への`selected`列追加は**採用しない**（§7.4）。代わりに、`JOURNAL_HEADERS`へ`selected`（1/0）相当の列を追加する案をPhase 4Bの検討候補として記載する（`CONVERT_HEADERS`のスコープ外）。
+
+### 7.4 検討した列・採否（タスク指定の「必要に応じて検討」項目）
 
 | 候補列 | 採否 | 理由 |
 | --- | --- | --- |
@@ -181,15 +191,15 @@ external_id=12345; affiliation=Universitas Indonesia; eissn=8765-4321
 | `eissn` | 不採用 | `note`集約候補（§6.1） |
 | `raw_json` | 不採用 | `journal`シートに既存。`note`生ダンプ回避方針と矛盾するため複製しない |
 | `selected` | 不採用（convert列としては） | `convert_status`の`ready`/`skipped`で同等の制御が可能。`journal`側への追加はPhase 4Bの別検討事項（§7.2） |
-| `source_query` | 不採用 | `main_row_id`経由で`main.journal_name`/`main.name`から追跡可能 |
+| `source_query` | 不採用（convert列としては） | 検索キーは`main.search_query`で管理し、`convert`には出力しない。`journal.raw_json` / `envelope.query`で実際に使ったqueryを追跡する |
 
 ---
 
 ## 8. `enrich-db` との関係
 
-- `sealib_name`/`sealib_o_name`/`sealib_id`の出どころは`main.name`/`main.o_name`/`main.id`。これらが空の場合、`enrich-db`（`docs/rebuild-plan.md` §6 Phase 4）がSEALIB DBから補完する。
-- `enrich-db`は**補助工程**であり、`sealib_*`列を埋めることが役割。`ref_id`/`ref_name`の最終的な参照整合性保証は`enrich-db`ではなく**Program2が投入時点に担う**（`docs/program2-resolution-strategy.md` §7、`docs/rebuild-plan.md` §8.1）。
-- したがって、`enrich-db`実行前でも`sealib_name`（`main.name`）が入力済みであれば`convert`行の生成自体は可能。`sealib_o_name`/`sealib_id`が空でもProgram2側のfallback/disambiguationが機能しない場合があるだけで、`convert`生成のブロッカーにはしない。
+- `sealib_name`/`sealib_o_name`/`sealib_id`の出どころは`main.name`/`main.o_name`/`journal.external_journal_id`。Phase 6A 時点では、fetch-journal の結果に SEALIB ID が `journal.external_journal_id` として入っている前提で convert 生成時に補完する。
+- `enrich-db`は将来の補助工程であり、Phase 6A の convert 生成では DB 再検索を行わない。`ref_id`/`ref_name`の最終的な参照整合性保証は`enrich-db`ではなく**Program2が投入時点に担う**（`docs/program2-resolution-strategy.md` §7、`docs/rebuild-plan.md` §8.1）。
+- `main.name` / `main.o_name` / `journal.external_journal_id` が空の場合、対応する `sealib_*` 値は空欄にする。convert 生成ではエラーにしないが、Program2 dry-run で `unmatched` / `invalid` になり得る。
 
 ---
 

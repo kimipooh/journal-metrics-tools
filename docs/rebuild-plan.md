@@ -78,7 +78,8 @@ SEALIB 等（取込は SEALIB 側 import-data-ext が実施）
 | `o_name` | 原語名 |
 | `issn` | ISSN |
 | `eissn` | eISSN（新規。SEALIB `header` に列なし→ツール側保持のみ、DB へは同期しない） |
-| `journal_name` | 外部ツール検索キー |
+| `journal_name` | 外部ソース上の候補名・確認対象名 |
+| `search_query` | 外部 adapter に渡す検索文字列。空なら移行補助として `journal_name` を使う。SEALIB adapter は使わない |
 | `note` | 備考 |
 | `status` | 進捗（単一列。語彙案: `new` / `queued` / `fetched` / `reviewed` / `converted` / `hold`） |
 
@@ -109,7 +110,7 @@ SEALIB 等（取込は SEALIB 側 import-data-ext が実施）
 | `journal_name` | 名称 |
 | `affiliation` | 所属 |
 | `note` | 備考 |
-| `convert_status` | `ready` / `exported` / `imported` / `skipped` |
+| `convert_status` | `ready` / `hold` / `skipped`（`exported` / `imported` は将来語彙） |
 
 ## 5. 新コマンド体系（最小実装で段階構築）
 
@@ -142,6 +143,8 @@ SEALIB 等（取込は SEALIB 側 import-data-ext が実施）
 
 ### Phase 3 — `convert`
 - main↔journal の確定（採用候補選択）から convert 行を生成。`convert_status` でゲート。
+- `sealib_name` / `sealib_o_name` / `sealib_id` は `main.name` / `main.o_name` / `journal.external_journal_id` から補完する。欠損時は空欄とし、convert ではエラーにしない。
+- `convert_status` は source role と grade の有無で決定する。`SINTA` / `THAI_TIER` かつ grade 非空のみ `ready`、grade空は `hold`、`SEALIB` / `MOCK` / 未知sourceは `skipped`。
 - TSV/SQL を出力（DB 投入物）。grade 正規化を再利用。
 - **検証**: convert シート + TSV が生成され、確定行のみ含まれること。SEALIB `journal_metrics` へのマッピング（§8）が成立すること。
 
@@ -153,7 +156,7 @@ SEALIB 等（取込は SEALIB 側 import-data-ext が実施）
 
 ## 7. アダプタ contract（fetch-journal / enrich-db 共通の考え方）
 
-- **fetch adapter（外部 CLI）**: 入力＝検索キー（`main.journal_name` 等）→ 出力＝候補配列（JSON）。各候補を journal 行へ写像。`journal_type` は呼び出し側が付与し、`grade` 正規化と `raw_json` 保存はツール側で行う。SINTA / Thai Tier はアダプタ差し替えで対応。
+- **fetch adapter（外部 CLI）**: 入力＝検索キー（`main.search_query`、空なら移行補助として `main.journal_name`。`main.name` には fallback しない）→ 出力＝候補配列（JSON）。各候補を journal 行へ写像。`journal_type` は呼び出し側が付与し、`grade` 正規化と `raw_json` 保存はツール側で行う。SINTA / Thai Tier はアダプタ差し替えで対応。
 - **db adapter（補完）**: `lookup(key: id|name|o_name) -> record`。read-only。`SEALIBAdapter` は `header` テーブルを参照（旧 `read_sealib_rows` の方式）。将来は他図書館 DB 用アダプタを追加可能。
 
 ## 8. 破壊的変更・リスク

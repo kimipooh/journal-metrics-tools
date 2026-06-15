@@ -26,10 +26,13 @@ def _fetched_at() -> str:
 def _row_from_candidate(
     *,
     candidate: dict[str, Any],
+    query: str | None,
     main_row_id: int,
     fetch_status: str,
     fetched_at: str,
 ) -> dict[str, Any]:
+    raw_candidate = dict(candidate)
+    raw_candidate["query"] = query
     return {
         "main_row_id": main_row_id,
         "journal_type": candidate.get("source"),
@@ -40,7 +43,7 @@ def _row_from_candidate(
         "profile_url": candidate.get("url"),
         "fetch_status": fetch_status,
         "fetched_at": fetched_at,
-        "raw_json": _raw_json(candidate),
+        "raw_json": _raw_json(raw_candidate),
     }
 
 
@@ -91,6 +94,7 @@ def map_envelope_to_journal_rows(
     return [
         _row_from_candidate(
             candidate=candidate,
+            query=envelope.get("query"),
             main_row_id=main_row_id,
             fetch_status=fetch_status,
             fetched_at=fetched_at,
