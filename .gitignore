@@ -13,6 +13,8 @@ venv/
 env/
 .venv
 
+*.pdf 
+
 # Python cache
 __pycache__/
 *.pyc
@@ -24,6 +26,10 @@ journal_metrics.xlsx
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# OS / editor artifacts
+.DS_Store
+*.gitignore~
 
 *.xlsx
 *.tsv
