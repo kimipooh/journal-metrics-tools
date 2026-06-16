@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: Journal Metrics Tools
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - family-names: Kitani
+    given-names: Kimiya
+    affiliation: Center for Southeast Asian Studies, Kyoto University
+license: MIT
+version: 1.0.0
+date-released: "2026-06-16"
+# doi: will be added after archival release
+repository-code: https://github.com/kimipooh/journal-metrics-tools
+abstract: >
+  A workbook-based CLI tool for collecting, reviewing, reconciling,
+  and exporting journal-related information from multiple sources.
+  Implements an adapter architecture supporting bibliographic metadata
+  enrichment (SEALIB) and journal evaluation information retrieval (SINTA).
