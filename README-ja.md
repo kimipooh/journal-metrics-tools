@@ -1,5 +1,10 @@
 # Journal Metrics Tools
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
+[![README English](https://img.shields.io/badge/README-English-green.svg)](README.md)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20717641.svg)](https://doi.org/10.5281/zenodo.20717641)
+
 複数の情報源から学術誌に関する情報を収集・確認・照合・変換するための
 Excel ワークブックベースの CLI ツールです。
 
@@ -324,12 +329,8 @@ TSV の構造・形式を検証します（DB 接続不要）。
 本ツールを研究に利用した場合は、以下の形式で引用してください。
 
 ```
-Kitani, Kimiya. (2026). Journal Metrics Tools (Version 1.0.0).
-Center for Southeast Asian Studies, Kyoto University.
-https://github.com/kimipooh/journal-metrics-tools
+Kitani, Kimiya. (2026). Journal Metrics Tools (Version 1.0.1) [Software]. Zenodo. https://doi.org/10.5281/zenodo.20717641
 ```
-
-DOI はアーカイブリリース後に追加予定です。
 
 引用管理ソフトウェアで利用できる `CITATION.cff` ファイルをリポジトリに含めています。
 
