@@ -59,6 +59,8 @@ raw_json
 | `url` | プロフィール/詳細ページ URL | 任意 | 不明時は `null` | `profile_url` |
 | `note` | adapter からの補足情報（自由記述） | 任意 | 不明時は `null` | 直接対応列なし → `raw_json` に保持（`journal.note` 列の追加は本書スコープ外の将来検討事項） |
 
+> **注記（`external_journal_id` の意味差異）**: `external_journal_id` は本 contract 上「ソース側の journal ID」として定義されているが、SEALIB adapter は例外的に SEALIB `header.id`（SEALIB DB の内部レコードID）をこのフィールドに格納する。SINTA / Thai Tier 等の外部 source では文字通り外部サービスの journal ID を示す。この差異は `journal_metrics.py` の `convert_sealib_id()`（`metric_source == "SEALIB"` 分岐、L312-320）で吸収しており、SEALIB 行の場合のみ `journal.external_journal_id` を `convert.sealib_id` に昇格させ、SINTA 等の外部 source では `main.id` を `sealib_id` として使う。本挙動は既存 workbook との後方互換維持のために現時点では変更しない。将来的に `source_record_id` 等への名称整理を検討する可能性はあるが、現時点では設計上の注記に留める（Phase 7L-1 候補）。
+
 - JSON 上の空値は **`null`** を用いる（`""` ではない）。
 - `journal.raw_json` には **candidate オブジェクト全体**（上記フィールドすべて）を JSON 文字列として保存する。直接対応列がないフィールド（`issn`/`eissn`/`country`/`note`）はこの `raw_json` 経由でのみ保持される。fetch-journal はトレーサビリティのため、候補行の `raw_json` に実際に adapter へ渡した `query` も保存する。
 
