@@ -113,6 +113,15 @@ class FetchJournalCommandTest(unittest.TestCase):
         ])
         wb.save(self.workbook_path)
 
+    def _append_convert_row(self, values: dict[str, object]) -> None:
+        wb = load_workbook(self.workbook_path)
+        convert = wb["convert"]
+        convert.append([
+            values.get(header)
+            for header in journal_metrics.CONVERT_HEADERS
+        ])
+        wb.save(self.workbook_path)
+
     def test_sealib_fetch_fills_main_id_issn_and_keeps_status_pending(self) -> None:
         self._save_template_with_main_row(
             {
@@ -254,6 +263,36 @@ class FetchJournalCommandTest(unittest.TestCase):
             ["Fetched", "Not Found", "Multiple"],
         )
 
+    def test_should_process_update_processes_all_statuses_except_skip_or_done(self) -> None:
+        process_statuses = [
+            "",
+            "pending",
+            "adapter_error",
+            "fetched",
+            "not_found",
+            "multiple_candidates",
+            "hold",
+        ]
+        for status in process_statuses:
+            with self.subTest(status=status):
+                self.assertTrue(
+                    journal_metrics.should_process_main_row(
+                        status,
+                        "sealib",
+                        update=True,
+                    )
+                )
+
+        for status in ["skip", "done"]:
+            with self.subTest(status=status):
+                self.assertFalse(
+                    journal_metrics.should_process_main_row(
+                        status,
+                        "sealib",
+                        update=True,
+                    )
+                )
+
     def test_sinta_update_replaces_existing_sinta_rows_for_same_main_row_only(self) -> None:
         self._save_template_with_main_row(
             {
@@ -276,6 +315,15 @@ class FetchJournalCommandTest(unittest.TestCase):
                 "main_row_id": 2,
                 "journal_type": "SEALIB",
                 "external_journal_id": "SEALIB-KEEP",
+                "journal_name": "Journal Name",
+                "fetch_status": "ok",
+            }
+        )
+        self._append_journal_row(
+            {
+                "main_row_id": 2,
+                "journal_type": "MOCK",
+                "external_journal_id": "MOCK-KEEP",
                 "journal_name": "Journal Name",
                 "fetch_status": "ok",
             }
@@ -318,6 +366,10 @@ class FetchJournalCommandTest(unittest.TestCase):
         )
         self.assertIn(
             "SEALIB-KEEP",
+            [row.get("external_journal_id") for row in row_dicts],
+        )
+        self.assertIn(
+            "MOCK-KEEP",
             [row.get("external_journal_id") for row in row_dicts],
         )
         self.assertIn(
@@ -369,6 +421,80 @@ class FetchJournalCommandTest(unittest.TestCase):
         self.assertEqual(main.cell(row=2, column=main_headers["status"] + 1).value, "adapter_error")
         journal = wb["journal"]
         self.assertEqual(journal.max_row, 1)
+
+    def test_sealib_update_replaces_existing_sealib_rows_for_same_main_row_only(self) -> None:
+        self._save_template_with_main_row(
+            {
+                "name": "Journal Name",
+                "status": "fetched",
+            }
+        )
+        self._append_journal_row(
+            {
+                "main_row_id": 2,
+                "journal_type": "SEALIB",
+                "external_journal_id": "SEALIB-OLD",
+                "journal_name": "Journal Name",
+                "fetch_status": "ok",
+            }
+        )
+        self._append_journal_row(
+            {
+                "main_row_id": 2,
+                "journal_type": "SINTA",
+                "external_journal_id": "SINTA-KEEP",
+                "journal_name": "Journal Name",
+                "grade": "S1 Accredited",
+                "fetch_status": "ok",
+            }
+        )
+        self._append_journal_row(
+            {
+                "main_row_id": 2,
+                "journal_type": "MOCK",
+                "external_journal_id": "MOCK-KEEP",
+                "journal_name": "Journal Name",
+                "fetch_status": "ok",
+            }
+        )
+        self._append_journal_row(
+            {
+                "main_row_id": 99,
+                "journal_type": "SEALIB",
+                "external_journal_id": "SEALIB-OTHER",
+                "journal_name": "Other",
+                "fetch_status": "ok",
+            }
+        )
+
+        with patch(
+            "journal_metrics.fetch_sealib_journal",
+            return_value=_sealib_envelope(external_journal_id="SEALIB-NEW"),
+        ):
+            journal_metrics.fetch_journal_command(
+                _args(input=str(self.workbook_path), update=True)
+            )
+
+        wb = load_workbook(self.workbook_path)
+        journal = wb["journal"]
+        headers = journal_metrics.header_index(journal)
+        row_dicts = [
+            journal_metrics.row_to_dict(list(headers.keys()), row)
+            for row in journal.iter_rows(min_row=2, values_only=True)
+        ]
+        external_ids = [row.get("external_journal_id") for row in row_dicts]
+        self.assertNotIn("SEALIB-OLD", external_ids)
+        self.assertIn("SINTA-KEEP", external_ids)
+        self.assertIn("MOCK-KEEP", external_ids)
+        self.assertIn("SEALIB-OTHER", external_ids)
+
+        new_sealib_rows = [
+            row
+            for row in row_dicts
+            if row.get("main_row_id") == 2 and row.get("journal_type") == "SEALIB"
+        ]
+        self.assertEqual(len(new_sealib_rows), 1)
+        self.assertEqual(new_sealib_rows[0]["external_journal_id"], "SEALIB-NEW")
 
     def test_sealib_update_does_not_change_status_or_overwrite_existing_main_values(self) -> None:
         self._save_template_with_main_row(
@@ -427,6 +553,54 @@ class FetchJournalCommandTest(unittest.TestCase):
         _positional_args, keyword_args = fetch_sinta.call_args
         self.assertEqual(keyword_args["main_issn"], "0024-9521")
         self.assertEqual(keyword_args["main_eissn"], "2354-9114")
+
+    def test_convert_resets_existing_convert_rows_before_regeneration(self) -> None:
+        self._save_template_with_main_row(
+            {
+                "id": "SEALIB-001",
+                "name": "Journal Name",
+                "o_name": "Original Name",
+                "status": "fetched",
+            }
+        )
+        self._append_journal_row(
+            {
+                "main_row_id": 2,
+                "journal_type": "SINTA",
+                "external_journal_id": "SINTA-NEW",
+                "journal_name": "Journal Name",
+                "grade": "S1 Accredited",
+                "profile_url": "https://example.test/sinta-new",
+                "fetch_status": "ok",
+                "raw_json": '{"country": "ID", "external_journal_id": "SINTA-NEW"}',
+            }
+        )
+        self._append_convert_row(
+            {
+                "main_row_id": 2,
+                "metric_source": "SINTA",
+                "sealib_name": "Old Convert Row",
+                "grade": "S2 Accredited",
+                "convert_status": "ready",
+            }
+        )
+
+        journal_metrics.convert_command(
+            SimpleNamespace(input=str(self.workbook_path))
+        )
+
+        wb = load_workbook(self.workbook_path)
+        convert = wb["convert"]
+        headers = journal_metrics.header_index(convert)
+        rows = [
+            journal_metrics.row_to_dict(list(headers.keys()), row)
+            for row in convert.iter_rows(min_row=2, values_only=True)
+        ]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["sealib_name"], "Journal Name")
+        self.assertEqual(rows[0]["metric_source"], "SINTA")
+        self.assertEqual(rows[0]["grade"], "S1 Accredited")
+        self.assertNotEqual(rows[0]["sealib_name"], "Old Convert Row")
 
 
 if __name__ == "__main__":

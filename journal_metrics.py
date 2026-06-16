@@ -534,12 +534,12 @@ def fetch_journal_command(args: argparse.Namespace) -> None:
         if not should_process_main_row(status, args.adapter, update=args.update):
             continue
 
-        if args.adapter == "sinta" and args.update:
+        if args.adapter in {"sinta", "sealib"} and args.update:
             deleted_rows += delete_journal_rows_for_main_source(
                 journal_ws,
                 journal_headers,
                 excel_row_number,
-                "SINTA",
+                args.adapter.upper(),
             )
 
         if args.adapter == "sinta" and status == "adapter_error":
@@ -799,7 +799,7 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_journal.add_argument(
         "--update",
         action="store_true",
-        help="Re-fetch existing main rows except skip/done and replace SINTA journal rows for SINTA updates.",
+        help="Re-fetch existing main rows except skip/done and replace same-adapter journal rows for SINTA/SEALIB updates.",
     )
     fetch_journal.add_argument(
         "--db-path",

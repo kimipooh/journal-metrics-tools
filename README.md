@@ -59,7 +59,7 @@ pip install -r requirements.txt   # openpyxl
 
 `fetch-journal --adapter sinta` は `main.status` が空欄 / `pending` / `adapter_error` の行を処理対象にします。`adapter_error` は SINTA CLI パス誤りや一時的な外部エラーからの再試行用 status です。adapter error が再発した場合は `main.status=adapter_error` を残し、`journal` シートには候補データ風の error 行を追加しません。再試行前に同じ `main` 行へ紐づく既存 `fetch_status=error` 行がある場合は削除し、正常候補行は削除しません。
 
-`fetch-journal --update` は年次更新などで既存行を再取得するためのオプションです。完全空白行を除き、`main.status` が空欄 / `pending` / `adapter_error` / `fetched` / `not_found` / `multiple_candidates` の行を再処理します。`skip` / `done` は処理しません。`--adapter sinta --update` では、再取得前に同じ `main_row_id` かつ `journal_type=SINTA` の既存 `journal` 行を削除し、新しい結果だけを書き込みます。SEALIB 行や他 adapter 行は削除しません。`--adapter sealib --update` は空欄の `main.id` / `main.issn` / `main.o_name` だけを補完し、既存値と `main.status` は変更しません。
+`fetch-journal --update` は年次更新などで既存行を再取得するためのオプションです。完全空白行を除き、`main.status` が空欄 / `pending` / `adapter_error` / `fetched` / `not_found` / `multiple_candidates` の行を再処理します。`skip` / `done` は処理しません。`--adapter sinta --update` では、再取得前に同じ `main_row_id` かつ `journal_type=SINTA` の既存 `journal` 行を削除し、新しい結果だけを書き込みます。SEALIB 行や MOCK など他 adapter 行は削除しません。`--adapter sealib --update` でも、再取得前に同じ `main_row_id` かつ `journal_type=SEALIB` の既存 `journal` 行だけを削除し、新しい SEALIB 参照結果を書き込みます。SINTA 行や MOCK など他 adapter 行は削除しません。SEALIB 補完は空欄の `main.id` / `main.issn` / `main.o_name` だけを対象にし、既存値と `main.name`、`main.status` は変更しません。
 
 現時点の SEALIB adapter は `journal_metrics` テーブル参照、grade 取得、grade 正規化をまだ行いません。実 SEALIB DB での検証は DB パス確認後に行います。本番データ投入はまだ慎重に扱い、まずは少数のテスト行で `journal` シートへの追記結果と `main.status` 更新を確認してください。
 
