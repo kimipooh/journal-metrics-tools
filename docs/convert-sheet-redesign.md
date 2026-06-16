@@ -5,6 +5,8 @@
 **対象**: `journal_metrics.py` の `CONVERT_HEADERS` / `convert` シート / Program2向けTSV出力列
 
 > 本書は **列構成の設計提案のみ**。`convert`コマンド・TSV出力・Program2のいずれも実装しない。CONVERT_HEADERSの更新（コード反映）は本書の対象外（Phase 4Bで実施）。
+>
+> **v1.0.0 注記**: 本書で旧 `metrics_excel.py` に触れる箇所は historical implementation としての参照である。このファイルは v1.0.0 前に削除済みであり、現行実装は `journal_metrics.py` / `journal_mapper.py` / `adapters/` である。
 
 ---
 
@@ -58,7 +60,7 @@ CONVERT_HEADERS = [
 main_row_id, metric_source, metric_country, sealib_name, sealib_o_name, sealib_id, grade, url, note, convert_status
 ```
 
-中央8列（`metric_source`〜`note`）は、legacy `metrics_excel.py export`のTSV列順（`metric_source, metric_country, sealib_name, sealib_o_name, sealib_id, grade, url, note`、README.md「Legacy / Previous workflow Behavior」参照）および sealib `journal-metrics-semi-auto-design.md` §8 が定義する Program2向けTSV列順と**完全に一致させる**。これにより、TSV出力時の列並び替えが不要になる（§9）。
+中央8列（`metric_source`〜`note`）は、historical implementation である旧 `metrics_excel.py export` のTSV列順（`metric_source, metric_country, sealib_name, sealib_o_name, sealib_id, grade, url, note`）および sealib `journal-metrics-semi-auto-design.md` §8 が定義する Program2向けTSV列順と**完全に一致させる**。これにより、TSV出力時の列並び替えが不要になる（§9）。
 
 ### 旧→新 対応表
 
@@ -104,7 +106,7 @@ main_row_id, metric_source, metric_country, sealib_name, sealib_o_name, sealib_i
 - `ref_id` = 解決後の`header.id`
 - `ref_name` = 解決後の`header.name`
 - `sealib_id`は0件時fallback・複数候補disambiguation・名前不一致warning用の補助情報であり、`ref_id`へ直結しない。
-- `sealib_id` は SEALIB `header.id` を表す。SINTA `journal_id`、Thai Tier 側ID、MOCK ID などの外部ソースIDは `journal.external_journal_id` / `note.external_id` として保持し、`sealib_id` には入れない。
+- `sealib_id` は SEALIB `header.id` を表す。SINTA `journal_id`、MOCK ID などの外部ソースIDは `journal.external_journal_id` / `note.external_id` として保持し、`sealib_id` には入れない。
 
 詳細フローは`docs/program2-resolution-strategy.md` §2.1（sealib `journal-metrics-semi-auto-design.md` §6.5 原典）を参照。
 
@@ -172,8 +174,8 @@ external_id=12345; affiliation=Universitas Indonesia; eissn=8765-4321
 
 | 条件 | `convert_status` | 意味 |
 | --- | --- | --- |
-| metrics source（`SINTA`, `THAI_TIER`）かつ `grade` 非空 | `ready` | Program2 TSV 出力対象 |
-| metrics source（`SINTA`, `THAI_TIER`）かつ `grade` 空 | `hold` | grade 補完待ち |
+| metrics source（`SINTA`）かつ `grade` 非空 | `ready` | Program2 TSV 出力対象 |
+| metrics source（`SINTA`）かつ `grade` 空 | `hold` | grade 補完待ち |
 | reference source（`SEALIB`） | `skipped` | SEALIB DB照合・E2E確認用。Program2投入対象外 |
 | test source（`MOCK`） | `skipped` | テスト用。Program2投入対象外 |
 | 未知 source | `skipped` | 安全側デフォルト |
@@ -198,7 +200,7 @@ external_id=12345; affiliation=Universitas Indonesia; eissn=8765-4321
 
 ## 8. `enrich-db` との関係
 
-- `sealib_name`/`sealib_o_name`の出どころは常に`main.name`/`main.o_name`。`sealib_id`は SEALIB `header.id` の補助値であり、`metric_source=="SEALIB"` の場合のみ `journal.external_journal_id` から補完する。SINTA / Thai Tier / MOCK 等では `journal.external_journal_id` は外部ソース側IDなので `sealib_id` には使わず、`main.id` から補完する。
+- `sealib_name`/`sealib_o_name`の出どころは常に`main.name`/`main.o_name`。`sealib_id`は SEALIB `header.id` の補助値であり、`metric_source=="SEALIB"` の場合のみ `journal.external_journal_id` から補完する。SINTA / MOCK 等では `journal.external_journal_id` は外部ソース側IDなので `sealib_id` には使わず、`main.id` から補完する。
 - `enrich-db`は将来の補助工程であり、Phase 6A の convert 生成では DB 再検索を行わない。`ref_id`/`ref_name`の最終的な参照整合性保証は`enrich-db`ではなく**Program2が投入時点に担う**（`docs/program2-resolution-strategy.md` §7、`docs/rebuild-plan.md` §8.1）。
 - `main.name` / `main.o_name` / `main.id` が空の場合、対応する `sealib_*` 値は空欄にする。convert 生成ではエラーにしないが、Program2 dry-run で `unmatched` / `invalid` になり得る。
 

@@ -58,6 +58,27 @@ adapter 方式を採用しているため、追加の書誌情報ソースや評
 
 ---
 
+## アーキテクチャ
+
+```
+ワークブック（main シート）
+  ↓
+Adapter
+  ├─ SEALIB（書誌情報補完）
+  ├─ SINTA（評価情報取得）
+  └─ mock（テスト・検証）
+  ↓
+確認（journal シート — 候補の確定）
+  ↓
+変換（convert シート — 出力用行の生成）
+  ↓
+検証済み TSV
+```
+
+> データベースへの登録処理（SEALIB Program2 等）は本ツールのスコープ外です。
+
+---
+
 ## 必要環境
 
 - Python 3.11 以上
@@ -236,8 +257,8 @@ python journal_metrics.py convert --input INPUT
 
 | `journal_type` | grade | `convert_status` | TSV 出力 |
 |---|---|---|---|
-| `SINTA`, `THAI_TIER` | あり | `ready` | される |
-| `SINTA`, `THAI_TIER` | なし | `hold` | されない |
+| `SINTA` | あり | `ready` | される |
+| `SINTA` | なし | `hold` | されない |
 | `SEALIB`, `MOCK` | — | `skipped` | されない |
 
 `convert` は毎回全行を再生成するため、古い行が残って二重化しません。
@@ -291,6 +312,29 @@ TSV の構造・形式を検証します（DB 接続不要）。
 
 ---
 
+## 作者
+
+木谷公哉（Kimiya Kitani）<br>
+京都大学東南アジア地域研究研究所（Center for Southeast Asian Studies, Kyoto University）
+
+---
+
+## 引用
+
+本ツールを研究に利用した場合は、以下の形式で引用してください。
+
+```
+Kitani, Kimiya. (2026). Journal Metrics Tools (Version 1.0.0).
+Center for Southeast Asian Studies, Kyoto University.
+https://github.com/kimipooh/journal-metrics-tools
+```
+
+DOI はアーカイブリリース後に追加予定です。
+
+引用管理ソフトウェアで利用できる `CITATION.cff` ファイルをリポジトリに含めています。
+
+---
+
 ## ライセンス
 
-MIT License。[LICENSE](LICENSE) を参照してください。
+MIT License。Copyright (c) 2026 Kimiya Kitani。[LICENSE](LICENSE) を参照してください。

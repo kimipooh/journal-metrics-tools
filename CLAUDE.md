@@ -105,8 +105,8 @@ This is intentional. Do not change `convert` to incremental/append mode without 
 **convert_status assignment logic (must be preserved):**
 
 ```
-SINTA / THAI_TIER  +  grade present  →  ready
-SINTA / THAI_TIER  +  grade absent   →  hold
+SINTA          +  grade present  →  ready
+SINTA          +  grade absent   →  hold
 SEALIB / MOCK                        →  skipped
 ```
 

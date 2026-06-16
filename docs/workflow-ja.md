@@ -166,8 +166,8 @@ python journal_metrics.py convert --input my_journals.xlsx
 
 | `journal_type` | grade | `convert_status` | TSV 出力 |
 |---|---|---|---|
-| `SINTA`, `THAI_TIER` | あり | `ready` | される |
-| `SINTA`, `THAI_TIER` | なし | `hold` | されない（grade 欠損を確認） |
+| `SINTA` | あり | `ready` | される |
+| `SINTA` | なし | `hold` | されない（grade 欠損を確認） |
 | `SEALIB`, `MOCK` | — | `skipped` | されない（参照・テスト用） |
 
 `convert` は毎回全行を削除してから再生成します。再実行しても古い行が残って二重化しません。

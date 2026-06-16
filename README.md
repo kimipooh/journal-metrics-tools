@@ -58,6 +58,27 @@ The adapter architecture allows additional metadata or evaluation sources to be 
 
 ---
 
+## Architecture
+
+```
+Workbook (main sheet)
+  ↓
+Adapters
+  ├─ SEALIB  (metadata enrichment)
+  ├─ SINTA   (evaluation information)
+  └─ mock    (testing / validation)
+  ↓
+Review (journal sheet — candidate confirmation)
+  ↓
+Convert (convert sheet — export-ready rows)
+  ↓
+Validated TSV
+```
+
+> Downstream import into SEALIB or any other database is outside the scope of this repository.
+
+---
+
 ## Requirements
 
 - Python 3.11+
@@ -235,8 +256,8 @@ Reads `journal` rows with `fetch_status = ok` and generates `convert` sheet rows
 
 | `journal_type` | grade present | `convert_status` | Included in TSV |
 |---|---|---|---|
-| `SINTA`, `THAI_TIER` | yes | `ready` | yes |
-| `SINTA`, `THAI_TIER` | no | `hold` | no |
+| `SINTA` | yes | `ready` | yes |
+| `SINTA` | no | `hold` | no |
 | `SEALIB`, `MOCK` | — | `skipped` | no |
 
 `convert` always regenerates all rows from scratch — no accumulation of stale rows.
@@ -290,6 +311,29 @@ Validates TSV structure without accessing any database.
 
 ---
 
+## Author
+
+Kimiya Kitani<br>
+Center for Southeast Asian Studies, Kyoto University
+
+---
+
+## Citation
+
+If you use this tool in your research, please cite it as follows:
+
+```
+Kitani, Kimiya. (2026). Journal Metrics Tools (Version 1.0.0).
+Center for Southeast Asian Studies, Kyoto University.
+https://github.com/kimipooh/journal-metrics-tools
+```
+
+DOI will be added after archival release.
+
+A `CITATION.cff` file is included in this repository for use with citation managers.
+
+---
+
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+MIT License. Copyright (c) 2026 Kimiya Kitani. See [LICENSE](LICENSE).

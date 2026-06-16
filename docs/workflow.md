@@ -171,8 +171,8 @@ Reads `journal` rows with `fetch_status = ok` and writes `convert` sheet rows.
 
 | `journal_type` | grade | `convert_status` | Notes |
 |---|---|---|---|
-| `SINTA`, `THAI_TIER` | present | `ready` | Included in TSV |
-| `SINTA`, `THAI_TIER` | absent | `hold` | Excluded; investigate the source |
+| `SINTA` | present | `ready` | Included in TSV |
+| `SINTA` | absent | `hold` | Excluded; investigate the source |
 | `SEALIB`, `MOCK` | — | `skipped` | Reference/test only; excluded from TSV |
 
 `convert` always regenerates all rows from scratch, so re-running it after an update will not leave stale rows.

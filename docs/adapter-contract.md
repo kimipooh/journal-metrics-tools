@@ -1,10 +1,10 @@
 # Adapter Contract（Journal Metrics 取得アダプタ共通仕様）
 
-> 本書は **contract 定義のみ**。実装は対象外（Phase 2B 以降）。journal_metrics.py / metrics_excel.py への変更は含まない。
+> 本書は **contract 定義のみ**。実装は対象外（Phase 2B 以降）。v1.0.0 時点の実装済み adapter は `mock` / `sealib` / `sinta` のみ。
 
 ## 1. 目的
 
-`fetch-journal`（Phase 2）は、外部ソース（SINTA / Thai Tier / SEALIB / 将来のソース）から Journal Metrics 候補を取得し、`journal` シートへ書き込む。本書は、その「取得」を担う **adapter** が満たすべき共通 contract（入出力形式・フィールド定義・status 語彙）を定義する。
+`fetch-journal`（Phase 2）は、外部ソース（SINTA / SEALIB / 将来のソース）から Journal Metrics 候補を取得し、`journal` シートへ書き込む。本書は、その「取得」を担う **adapter** が満たすべき共通 contract（入出力形式・フィールド定義・status 語彙）を定義する。
 
 adapter contract を固定することで、ソースごとの差異を adapter 内部に閉じ込め、`journal_metrics.py` 側（Excel 書き込み層）はソースを問わず同じ形式を扱える。
 
@@ -19,10 +19,10 @@ adapter は **Excel I/O を行わない**。`journal_metrics.py` は **ソース
 
 ## 3. 対応ソースと実装方針
 
-adapter contract は SEALIB / SINTA / Thai Tier / 将来ソースのいずれであっても同一の共通形式（§4）で結果を返す。adapter は各ソース固有の取得結果を共通フィールドへマッピングする。`grade` はソース表記の raw 値のまま返し、adapter は正規化を行わない（grade のソース横断正規化は fetch-journal 側 §2 の責務）。対応するフィールドが無いソースについては、当該フィールドを `null` として返すことで差異を吸収する。
+adapter contract は SEALIB / SINTA / 将来ソースのいずれであっても同一の共通形式（§4）で結果を返す。adapter は各ソース固有の取得結果を共通フィールドへマッピングする。`grade` はソース表記の raw 値のまま返し、adapter は正規化を行わない（grade のソース横断正規化は fetch-journal 側 §2 の責務）。対応するフィールドが無いソースについては、当該フィールドを `null` として返すことで差異を吸収する。
 
 - **Phase 2B**: 外部接続を行わない **mock adapter** を実装し、本 contract に準拠した固定/サンプル候補を返す。fetch-journal の実装・テストに先行して contract を検証する。
-- **Phase 2C 以降**: 実ソース adapter を実装する。**SEALIB adapter** を含む（SEALIB 側の既存メトリクスデータを Journal Metrics ソースの一つとして読み取る用途を想定）。SINTA / Thai Tier 等の外部 CLI 経由 adapter も同方針で追加する。
+- **Phase 2C 以降**: 実ソース adapter を実装する。**SEALIB adapter** を含む（SEALIB 側の既存メトリクスデータを Journal Metrics ソースの一つとして読み取る用途を想定）。SINTA 等の外部 CLI 経由 adapter も同方針で追加する。
 - 実装方式（in-process 関数 / 外部 CLI subprocess 等）は Phase 2B/2C で個別に確定する。本書は **入出力形式のみ** を固定する。
 
 ## 4. 共通返却形式
@@ -48,7 +48,7 @@ raw_json
 
 | フィールド | 意味 | 必須/任意 | 空値の扱い | `journal` シート対応列 |
 | --- | --- | --- | --- | --- |
-| `source` | 取得元識別子（`SINTA` / `THAI_TIER` / `SEALIB` 等） | **必須** | 空値不可 | `journal_type` |
+| `source` | 取得元識別子（`SINTA` / `SEALIB` 等） | **必須** | 空値不可 | `journal_type` |
 | `external_journal_id` | ソース側の journal ID | 任意 | 不明時は `null`（Excel では空セル） | `external_journal_id` |
 | `title` | 候補の名称（ソース表記） | **必須**（候補が存在する限り必須） | 空値不可 | `journal_name` |
 | `issn` | Print ISSN | 任意 | 不明時は `null` | 直接対応列なし → `raw_json` に保持 |
@@ -59,7 +59,7 @@ raw_json
 | `url` | プロフィール/詳細ページ URL | 任意 | 不明時は `null` | `profile_url` |
 | `note` | adapter からの補足情報（自由記述） | 任意 | 不明時は `null` | 直接対応列なし → `raw_json` に保持（`journal.note` 列の追加は本書スコープ外の将来検討事項） |
 
-> **注記（`external_journal_id` の意味差異）**: `external_journal_id` は本 contract 上「ソース側の journal ID」として定義されているが、SEALIB adapter は例外的に SEALIB `header.id`（SEALIB DB の内部レコードID）をこのフィールドに格納する。SINTA / Thai Tier 等の外部 source では文字通り外部サービスの journal ID を示す。この差異は `journal_metrics.py` の `convert_sealib_id()`（`metric_source == "SEALIB"` 分岐、L312-320）で吸収しており、SEALIB 行の場合のみ `journal.external_journal_id` を `convert.sealib_id` に昇格させ、SINTA 等の外部 source では `main.id` を `sealib_id` として使う。本挙動は既存 workbook との後方互換維持のために現時点では変更しない。将来的に `source_record_id` 等への名称整理を検討する可能性はあるが、現時点では設計上の注記に留める（Phase 7L-1 候補）。
+> **注記（`external_journal_id` の意味差異）**: `external_journal_id` は本 contract 上「ソース側の journal ID」として定義されているが、SEALIB adapter は例外的に SEALIB `header.id`（SEALIB DB の内部レコードID）をこのフィールドに格納する。SINTA 等の外部 source では文字通り外部サービスの journal ID を示す。この差異は `journal_metrics.py` の `convert_sealib_id()`（`metric_source == "SEALIB"` 分岐、L312-320）で吸収しており、SEALIB 行の場合のみ `journal.external_journal_id` を `convert.sealib_id` に昇格させ、SINTA 等の外部 source では `main.id` を `sealib_id` として使う。本挙動は既存 workbook との後方互換維持のために現時点では変更しない。将来的に `source_record_id` 等への名称整理を検討する可能性はあるが、現時点では設計上の注記に留める（Phase 7L-1 候補）。
 
 - JSON 上の空値は **`null`** を用いる（`""` ではない）。
 - `journal.raw_json` には **candidate オブジェクト全体**（上記フィールドすべて）を JSON 文字列として保存する。直接対応列がないフィールド（`issn`/`eissn`/`country`/`note`）はこの `raw_json` 経由でのみ保持される。fetch-journal はトレーサビリティのため、候補行の `raw_json` に実際に adapter へ渡した `query` も保存する。
@@ -209,7 +209,7 @@ raw_json
 - `journal_metrics.py` の変更（`fetch-journal` の実装）
 - mock adapter / SEALIB adapter / SINTA adapter 等の実装
 - 外部 CLI・DB・SEALIB・SINTA への接続
-- 旧 `metrics_excel.py` の変更
+- 削除済み legacy implementation（旧 `metrics_excel.py`）の変更
 
 ## 7. 関連ドキュメント
 

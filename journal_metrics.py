@@ -54,7 +54,6 @@ MAIN_STATUS_BY_ENVELOPE_STATUS = {
 
 METRIC_SOURCE_ROLES = {
     "SINTA": "metrics",
-    "THAI_TIER": "metrics",
     "SEALIB": "reference",
     "MOCK": "test",
 }

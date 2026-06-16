@@ -14,6 +14,8 @@
 **対象**: `adapters/sinta.py` の関数仕様・候補マッピング・status 変換・Phase 7B 実装範囲
 
 > 本書は **設計のみ**。`adapters/sinta.py` / `journal_metrics.py` 等のコード変更は含まない。SINTA への本番アクセスも行わない。
+>
+> **v1.0.0 注記**: 本書で旧 `metrics_excel.py` に触れる箇所は historical implementation としての参照である。このファイルは v1.0.0 前に削除済みであり、現行実装は `journal_metrics.py` / `journal_mapper.py` / `adapters/` である。
 
 ---
 
@@ -76,7 +78,7 @@
 
 ---
 
-## 2. 旧 metrics_excel.py での SINTA adapter 呼び出し
+## 2. 旧 metrics_excel.py での SINTA adapter 呼び出し（historical reference）
 
 ### 2.1 adapter command 解決（`resolve_adapter_command`, L97-132）
 
@@ -268,7 +270,7 @@ SINTA CLI（`--fetch-mode basic`, `-f json`）の1件の dict を、`docs/adapte
 - 空 `search_query`/`journal_name` 時の `main.status` 扱い（§5の論点、Phase 7C）。
 - grade 正規化。
 - `mode`/`fetch_mode`/`affil` の adapter引数化。
-- Thai Tier adapter。
+- 将来 source adapter。
 - Program2 / `convert` / DB 関連の変更。
 - SINTA への本番アクセス・大量取得。
 
@@ -278,12 +280,12 @@ SINTA CLI（`--fetch-mode basic`, `-f json`）の1件の dict を、`docs/adapte
 
 - `adapters/sinta.py` の実装（Phase 7B以降）。
 - SINTAサイトへの本番アクセス・大量取得。
-- Thai Tier adapter。
+- 将来 source adapter。
 - grade正規化。
 - Program2（`03-2-import-metrics.php`）の変更。
 - SEALIB DBへの書き込み。
 - 本番データの投入。
-- `journal_metrics.py` / `journal_mapper.py` / `adapters/mock.py` / `adapters/sealib.py` / 旧 `metrics_excel.py` / `README.md` の変更。
+- `journal_metrics.py` / `journal_mapper.py` / `adapters/mock.py` / `adapters/sealib.py` / 削除済み旧 `metrics_excel.py` / `README.md` の変更。
 
 ---
 
@@ -296,6 +298,6 @@ SINTA CLI（`--fetch-mode basic`, `-f json`）の1件の dict を、`docs/adapte
 - `journal_metrics.py`（`query_for_adapter`, `fetch_journal_command`, `MAIN_STATUS_BY_ENVELOPE_STATUS`）
 - `journal_mapper.py`（`map_envelope_to_journal_rows`, `raw_json` への candidate+query保存）
 - `adapters/sealib.py`（既存adapterの実装パターン・`db_path is None`→`adapter_error`の前例）
-- 旧 `metrics_excel.py`（`resolve_adapter_command`, `run_sinta_cli`, `extract_json_payload`, `normalize_candidates`, `normalized_grade`）
+- 旧 `metrics_excel.py`（削除済み historical implementation。`resolve_adapter_command`, `run_sinta_cli`, `extract_json_payload`, `normalize_candidates`, `normalized_grade`）
 - `../sinta-full-cli-v3/sinta-full-cli-v3.py`, `../sinta-full-cli-v3/README.md`（SINTA CLI仕様）
 - `.codex/tasks/phase7a-sinta-adapter-design.md`（本フェーズのタスク記録、Phase 7Bへの引き継ぎ）
