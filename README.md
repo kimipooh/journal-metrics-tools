@@ -53,15 +53,25 @@ pip install -r requirements.txt   # openpyxl
 
 `main.journal_name` は外部ソース上の候補名・確認対象名として保持します。`main.search_query` は SINTA / Thai Tier / mock などの外部 adapter に渡す検索文字列です。外部 adapter は `search_query` を優先し、空の場合のみ移行補助として `journal_name` を使います。`name` には fallback しません。既存 workbook に `search_query` 列がない場合も、外部 adapter は `journal_name` があれば従来データを検索できます。
 
-`fetch-journal --adapter sealib` は SEALIB SQLite DB を read-only 接続で参照し、DB照合用の `name`、空なら `o_name` を検索に使います。SEALIB adapter は `search_query` と `journal_name` を使いません。任意の `--country` を指定した場合は、SEALIB adapter 側で `header.country` を絞り込みます。
+`fetch-journal --adapter sealib` は SEALIB SQLite DB を read-only 接続で参照し、DB照合用の `name`、空なら `o_name` を検索に使います。SEALIB adapter は `search_query` と `journal_name` を使いません。任意の `--country` を指定した場合は、SEALIB adapter 側で `header.country` を絞り込みます。SEALIB adapter は内部補完処理として扱い、`main.status` は変更しません（`pending` のまま後続の `--adapter sinta` が処理できます）。候補が1件だけ取得できた場合に限り、空欄の `main.id` / `main.issn` / `main.o_name` を SEALIB `header.id` / `header.issn` / `header.o_name` で補完します。既存値と `main.name` は上書きしません。`header.issn` / `header.o_name` が空の場合もエラーにはしません。
 
-`fetch-journal --adapter sinta` は別リポジトリの `sinta-full-cli-v3.py` を subprocess で呼び出します。`--sinta-command` は必須で、SINTA CLI のスクリプトパスだけを指定します。SINTA CLI 用に別 venv を使う場合は `--sinta-python` を指定できます。検索キーは `main.search_query` を優先し、空の場合のみ移行補助として `main.journal_name` を使います。`main.name` には fallback しません。
+`fetch-journal --adapter sinta` は別リポジトリの `sinta-full-cli-v3.py` を subprocess で呼び出します。`--sinta-command` は必須で、SINTA CLI のスクリプトパスだけを指定します。SINTA CLI 用に別 venv を使う場合は `--sinta-python` を指定できます。検索キーは `main.search_query` を優先し、空の場合のみ移行補助として `main.journal_name` を使います。`main.name` には fallback しません。SINTA 検索で複数候補が返った場合でも、正規化後の候補 title が検索キーと完全一致するものが1件だけなら、その1件を `fetched` として自動確定します。title 完全一致候補が2件以上あり、`main.issn` / `main.eissn` のいずれかがある場合は、候補の `p_issn` / `e_issn` と照合し、一意に一致した場合だけ `fetched` とします。標準検索結果に ISSN が無い場合に限り、同条件下で `--fetch-mode detail` を追加実行して ISSN 補助照合を試みます。detail 取得失敗時は検索成功分を保持し、`adapter_error` にはせず `multiple_candidates` のままにします。
+
+`fetch-journal --adapter sinta` は `main.status` が空欄 / `pending` / `adapter_error` の行を処理対象にします。`adapter_error` は SINTA CLI パス誤りや一時的な外部エラーからの再試行用 status です。adapter error が再発した場合は `main.status=adapter_error` を残し、`journal` シートには候補データ風の error 行を追加しません。再試行前に同じ `main` 行へ紐づく既存 `fetch_status=error` 行がある場合は削除し、正常候補行は削除しません。
+
+`fetch-journal --update` は年次更新などで既存行を再取得するためのオプションです。完全空白行を除き、`main.status` が空欄 / `pending` / `adapter_error` / `fetched` / `not_found` / `multiple_candidates` の行を再処理します。`skip` / `done` は処理しません。`--adapter sinta --update` では、再取得前に同じ `main_row_id` かつ `journal_type=SINTA` の既存 `journal` 行を削除し、新しい結果だけを書き込みます。SEALIB 行や他 adapter 行は削除しません。`--adapter sealib --update` は空欄の `main.id` / `main.issn` / `main.o_name` だけを補完し、既存値と `main.status` は変更しません。
 
 現時点の SEALIB adapter は `journal_metrics` テーブル参照、grade 取得、grade 正規化をまだ行いません。実 SEALIB DB での検証は DB パス確認後に行います。本番データ投入はまだ慎重に扱い、まずは少数のテスト行で `journal` シートへの追記結果と `main.status` 更新を確認してください。
 
 `convert` は `journal.fetch_status == ok` の行から Program2 TSV 用の行を再生成します。Program2 の名前再解決に必要な `sealib_name` は `main.name`、`sealib_o_name` は `main.o_name` から設定します。`sealib_id` は SEALIB `header.id` 用の補助値です。`metric_source == SEALIB` の場合のみ `journal.external_journal_id`（SEALIB header.id）を使い、SINTA / MOCK / THAI_TIER など外部 source では `main.id` を使います。SINTA の `journal_id` は `sealib_id` には入れず、`note` の `external_id=...` として保持します。欠損値は空欄として扱い、`convert` ではエラーにしません。
 
+`--update` は `fetch-journal` の再取得だけを行います。grade 変更などを Program2 TSV に反映するには、更新後に `convert`、`export-tsv`、`validate-tsv` を明示的に再実行してください。`convert` は実行時に既存 `convert` シートのデータ行を削除して再生成するため、古い convert 行は二重化しません。
+
 `convert_status` は source role と grade の有無で決まります。`SINTA` / `THAI_TIER` は grade があれば `ready`、grade が空なら `hold` です。`SEALIB` / `MOCK` は参照・テスト用の source として `skipped` になり、`export-tsv` には出ません。`export-tsv` は `ready` 行だけを Program2 TSV に出力します。
+
+SINTA から Program2 dry-run までの少数実データ検証では、`fetch-journal --adapter sinta` → `convert` → `export-tsv` → `validate-tsv` → `03-2-import-metrics.php --dry-run --db ext` が成立することを確認済みです。Program2 dry-run の name matching は `sealib_name`（= `main.name`）を SEALIB DB の `header.name` と照合するため、`main.name` は可能な限り SEALIB DB の正式名称に合わせてください。`search_query` は SINTA / Thai Tier 等の外部 adapter 用の検索語であり、Program2 再解決には使いません。
+
+Program2 `--apply` 実行前の最終承認手順は、sealib リポジトリの `docs/program2-apply-runbook.md`（3.1〜3.3）に整理しています。必須条件は `validate-tsv` の `errors = 0`、dry-run成功、`ambiguous = 0` / `unmatched = 0` / `invalid = 0`、`planned_insert_rows` が想定件数と一致することで、推奨条件は `warning = 0` です。`warning > 0` の場合は report の `reason` と `main.name` / SEALIB DB `header.name` の一致を確認し、apply判定を **apply可** / **apply保留** / **workbook・mainシート修正後にdry-run再実行** の3区分で整理します。Phase 7J では同フローを SEALIB `header`（country=IO）15件で実行し、`fetched=4 / multiple_candidates=2 / not_found=9` のうち `ready` 4件で `ready_to_insert=4 / warning=0 / ambiguous=0 / unmatched=0 / invalid=0 / planned_insert_rows=4`（全件 `matched by name`）となることを確認しました。Phase 7K-1 では 22件（`phase7k-0-sinta-test.xlsx`）で同フローを実行し、title 完全一致複数候補を ISSN 補助照合で1件確定する処理も含め、22件すべてが `fetched=22`・`ready_to_insert=22`・`warning=0`・`ambiguous=0`・`unmatched=0`・`invalid=0`・`planned_insert_rows=22` となることを確認しました。Program2 `--apply` は未実行、DB 書き込みなし、本番 workbook 変更なしです。
 
 ## Legacy / Previous workflow
 

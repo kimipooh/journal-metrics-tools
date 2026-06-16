@@ -25,8 +25,9 @@
 - SINTA adapter は `query` を `main.search_query`（空なら `main.journal_name`）から得る前提とする。`main.name` への fallback は行わない。これは `journal_metrics.py` の既存 `query_for_adapter()` がすでに保証しており、SINTA 用の変更は不要。
 - `country` は固定値 `"ID"` を返す（`docs/adapter-contract.md` §5.1/5.2 の SINTA 例と一致）。
 - `grade` は SINTA の `sinta_level` raw 値（例: `"S1 Accredited"`）をそのまま返す。正規化は行わない（adapter contract §3 / `docs/grade-and-source-policy.md` §7 と一致）。
-- `--fetch-mode basic`（Phase 7B 既定）では `issn`/`eissn` は常に `null`。detail mode 対応は将来拡張。
-- status 変換は `docs/adapter-contract.md` §4.4 に準拠（候補数 0/1/2+ → `not_found`/`fetched`/`multiple_candidates`、CLI失敗・timeout・JSON parse失敗・`command`未指定 → `adapter_error`）。
+- 通常検索は `--fetch-mode basic`（Phase 7B 既定）で行う。Phase 7K-1 では、title 完全一致候補が2件以上あり、`main.issn` / `main.eissn` が存在し、basic 結果だけでは ISSN 補助照合で一意化できない場合に限り、`--fetch-mode detail` を追加実行して `p_issn` / `e_issn` を取得する。
+- status 変換は `docs/adapter-contract.md` §4.4 に準拠する。候補数 0件は `not_found`、1件は `fetched`、複数件は原則 `multiple_candidates` とする。ただし複数候補のうち、正規化後の候補 title が正規化後の検索キーと完全一致するものが1件だけの場合は、その1件だけを `fetched` として返す。title 完全一致候補が2件以上ある場合は、`main.issn` / `main.eissn` と候補 `p_issn` / `e_issn` の ISSN 正規化値を照合し、一意に一致した場合だけ `fetched` とする。CLI失敗・timeout・JSON parse失敗・`command`未指定は `adapter_error` とする。detail 取得のみの失敗は検索自体の失敗ではないため、`adapter_error` にせず basic 検索結果の `multiple_candidates` を保持する。
+- Phase 7K-2 では `fetch-journal --adapter sinta --update` により既存 fetched/not_found/multiple_candidates 行も再取得できる。既存 `journal` 行の置換は adapter ではなく `journal_metrics.py` 側で行い、同じ `main_row_id` かつ `journal_type=SINTA` の行だけを削除してから新しい envelope を書き込む。SEALIB や他 adapter の journal 行は保持する。
 
 ---
 
@@ -164,7 +165,7 @@ cmd = [
 ```
 
 - `-m title`: `main.search_query`/`main.journal_name`（journal タイトル文字列）と意味的に対応する「タイトル検索」を既定とする（旧 `add_sinta_args` の既定 `title` と一致）。
-- `--fetch-mode basic`: プロフィールページへの追加アクセスを行わず、応答時間とSINTAサイトへの負荷を抑える。副作用として `issn`/`eissn` は常に `null`（§6）。
+- `--fetch-mode basic`: プロフィールページへの追加アクセスを行わず、応答時間とSINTAサイトへの負荷を抑える。標準検索結果では `issn`/`eissn` が得られないことがある（§6）。
 - `mode` / `fetch_mode` を呼び出し引数として公開するかは Phase 7B 以降の検討事項（§9 非対象）。
 - `command` は **単一のスクリプトパス文字列**として扱い、`shlex.split` 等によるマルチトークン解釈は Phase 7B では行わない（§9 非対象）。
 
@@ -208,8 +209,8 @@ SINTA CLI（`--fetch-mode basic`, `-f json`）の1件の dict を、`docs/adapte
 | `source` | （固定値） | `"SINTA"`（`fetch_journal` の `source` 引数値） |
 | `external_journal_id` | `journal_id` | 文字列のまま。`"N/A"` → `null` |
 | `title` | `journal_name` | そのまま（候補が存在する限り必須）。SINTA側が `"Unknown"` を返した場合もそのまま通す（raw値方針） |
-| `issn` | `p_issn`（**basic modeでは出力されない**） | Phase 7B（`--fetch-mode basic`）では常に `null` |
-| `eissn` | `e_issn`（**basic modeでは出力されない**） | Phase 7B では常に `null` |
+| `issn` | `p_issn`（basic modeでは出力されないことがある） | Phase 7K-1 では必要時のみ detail mode で補完 |
+| `eissn` | `e_issn`（basic modeでは出力されないことがある） | Phase 7K-1 では必要時のみ detail mode で補完 |
 | `publisher` | `affiliation` | 空文字 → `null`、それ以外はそのまま |
 | `country` | （固定値） | `"ID"`（SINTAはインドネシア限定ソース。`docs/adapter-contract.md` §5.1/§5.2 のSINTA例と一致） |
 | `grade` | `sinta_level` | raw値のまま（例 `"S1 Accredited"`）。`"N/A"` → `null`。正規化なし（§7） |

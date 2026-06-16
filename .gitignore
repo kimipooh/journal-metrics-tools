@@ -11,6 +11,7 @@
 .venv/
 venv/
 env/
+.venv
 
 # Python cache
 __pycache__/
@@ -23,3 +24,6 @@ journal_metrics.xlsx
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+*.xlsx
+*.tsv

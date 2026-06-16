@@ -204,6 +204,16 @@ def query_for_adapter(row: Sequence[object], index: dict[str, int], adapter: str
     return ""
 
 
+def row_has_any_value(row: Sequence[object]) -> bool:
+    return any(text_value(cell.value) for cell in row)
+
+
+def should_process_main_row(status: str, adapter: str, update: bool = False) -> bool:
+    if update:
+        return status not in {"skip", "done"}
+    return status in {"", "pending", "adapter_error"}
+
+
 def row_to_dict(headers: list[str], values: Sequence[object]) -> dict[str, object]:
     return {
         header: values[index] if index < len(values) else None
@@ -346,6 +356,120 @@ def generate_convert_rows(
     }
 
 
+def fill_main_row_from_sealib_candidate(
+    main_ws: Worksheet,
+    main_headers: dict[str, int],
+    row: Sequence[object],
+    excel_row_number: int,
+    envelope: dict,
+) -> int:
+    """Fill empty main.id / main.issn / main.o_name from a single SEALIB candidate.
+
+    main.status is intentionally left unchanged: the SEALIB adapter performs
+    internal id/issn/o_name completion, not an external metrics fetch.
+    """
+    if envelope["status"] != "fetched" or len(envelope["candidates"]) != 1:
+        return 0
+
+    candidate = envelope["candidates"][0]
+    filled_fields = 0
+
+    if "id" in main_headers:
+        current_id = text_value(cell_value(row, main_headers, "id"))
+        candidate_id = text_value(candidate.get("external_journal_id"))
+        if not current_id and candidate_id:
+            main_ws.cell(
+                row=excel_row_number,
+                column=main_headers["id"] + 1,
+                value=candidate_id,
+            )
+            filled_fields += 1
+
+    if "issn" in main_headers:
+        current_issn = text_value(cell_value(row, main_headers, "issn"))
+        candidate_issn = text_value(candidate.get("issn"))
+        if not current_issn and candidate_issn:
+            main_ws.cell(
+                row=excel_row_number,
+                column=main_headers["issn"] + 1,
+                value=candidate_issn,
+            )
+            filled_fields += 1
+
+    if "o_name" in main_headers:
+        current_o_name = text_value(cell_value(row, main_headers, "o_name"))
+        candidate_o_name = text_value(candidate.get("note"))
+        if not current_o_name and candidate_o_name:
+            main_ws.cell(
+                row=excel_row_number,
+                column=main_headers["o_name"] + 1,
+                value=candidate_o_name,
+            )
+            filled_fields += 1
+
+    return 1 if filled_fields else 0
+
+
+def delete_journal_error_rows_for_main(
+    journal_ws: Worksheet,
+    journal_headers: dict[str, int],
+    main_row_id: int,
+) -> int:
+    if "main_row_id" not in journal_headers or "fetch_status" not in journal_headers:
+        return 0
+
+    deleted = 0
+    for row_number in range(journal_ws.max_row, 1, -1):
+        row_id = text_value(
+            journal_ws.cell(
+                row=row_number,
+                column=journal_headers["main_row_id"] + 1,
+            ).value
+        )
+        fetch_status = text_value(
+            journal_ws.cell(
+                row=row_number,
+                column=journal_headers["fetch_status"] + 1,
+            ).value
+        ).lower()
+        if row_id == str(main_row_id) and fetch_status == "error":
+            journal_ws.delete_rows(row_number, 1)
+            deleted += 1
+
+    return deleted
+
+
+def delete_journal_rows_for_main_source(
+    journal_ws: Worksheet,
+    journal_headers: dict[str, int],
+    main_row_id: int,
+    source: str,
+) -> int:
+    if "main_row_id" not in journal_headers or "journal_type" not in journal_headers:
+        return 0
+
+    deleted = 0
+    normalized_source = source.upper()
+    for row_number in range(journal_ws.max_row, 1, -1):
+        row_id = text_value(
+            journal_ws.cell(
+                row=row_number,
+                column=journal_headers["main_row_id"] + 1,
+            ).value
+        )
+        journal_type = text_value(
+            journal_ws.cell(
+                row=row_number,
+                column=journal_headers["journal_type"] + 1,
+            ).value
+        ).upper()
+        if row_id == str(main_row_id) and journal_type == normalized_source:
+            journal_ws.delete_rows(row_number, 1)
+            deleted += 1
+
+    return deleted
+
+
 def build_template_workbook() -> Workbook:
     wb = Workbook()
 
@@ -388,6 +512,7 @@ def fetch_journal_command(args: argparse.Namespace) -> None:
     main_ws = wb["main"]
     journal_ws = wb["journal"]
     main_headers = header_index(main_ws)
+    journal_headers = header_index(journal_ws)
 
     for required_header in ["status"]:
         if required_header not in main_headers:
@@ -395,18 +520,38 @@ def fetch_journal_command(args: argparse.Namespace) -> None:
 
     processed_rows = 0
     appended_rows = 0
+    enriched_rows = 0
+    deleted_rows = 0
 
     for excel_row_number, row in enumerate(
         main_ws.iter_rows(min_row=2),
         start=2,
     ):
-        status = text_value(cell_value(row, main_headers, "status")).lower()
-        if status not in {"", "pending"}:
+        if not row_has_any_value(row):
             continue
+
+        status = text_value(cell_value(row, main_headers, "status")).lower()
+        if not should_process_main_row(status, args.adapter, update=args.update):
+            continue
+
+        if args.adapter == "sinta" and args.update:
+            deleted_rows += delete_journal_rows_for_main_source(
+                journal_ws,
+                journal_headers,
+                excel_row_number,
+                "SINTA",
+            )
+
+        if args.adapter == "sinta" and status == "adapter_error":
+            delete_journal_error_rows_for_main(
+                journal_ws,
+                journal_headers,
+                excel_row_number,
+            )
 
         query = query_for_adapter(row, main_headers, args.adapter)
         if not query:
-            if args.adapter in {"sealib", "sinta"}:
+            if args.adapter == "sinta":
                 main_ws.cell(
                     row=excel_row_number,
                     column=main_headers["status"] + 1,
@@ -428,29 +573,47 @@ def fetch_journal_command(args: argparse.Namespace) -> None:
                 command=args.sinta_command,
                 python=args.sinta_python,
                 timeout=args.sinta_timeout,
+                main_issn=cell_value(row, main_headers, "issn"),
+                main_eissn=cell_value(row, main_headers, "eissn"),
             )
         else:
             raise ValueError(f"Unsupported adapter: {args.adapter}")
 
-        journal_rows = map_envelope_to_journal_rows(
-            envelope,
-            main_row_id=excel_row_number,
-        )
+        if envelope["status"] == "adapter_error":
+            journal_rows = []
+        else:
+            journal_rows = map_envelope_to_journal_rows(
+                envelope,
+                main_row_id=excel_row_number,
+            )
         appended_rows += append_journal_rows(
             journal_ws,
             journal_rows,
             JOURNAL_HEADERS,
         )
-        main_ws.cell(
-            row=excel_row_number,
-            column=main_headers["status"] + 1,
-            value=MAIN_STATUS_BY_ENVELOPE_STATUS[envelope["status"]],
-        )
+        if args.adapter == "sealib":
+            enriched_rows += fill_main_row_from_sealib_candidate(
+                main_ws,
+                main_headers,
+                row,
+                excel_row_number,
+                envelope,
+            )
+        else:
+            main_ws.cell(
+                row=excel_row_number,
+                column=main_headers["status"] + 1,
+                value=MAIN_STATUS_BY_ENVELOPE_STATUS[envelope["status"]],
+            )
         processed_rows += 1
 
     wb.save(input_path)
     print(f"Processed main rows: {processed_rows}")
     print(f"Appended journal rows: {appended_rows}")
+    if args.update:
+        print(f"Deleted journal rows: {deleted_rows}")
+    if args.adapter == "sealib":
+        print(f"Enriched main rows (id/issn/o_name): {enriched_rows}")
     print(f"Adapter: {args.adapter}")
 
 
@@ -632,6 +795,11 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         choices=["mock", "sealib", "sinta"],
         help="Adapter to use.",
+    )
+    fetch_journal.add_argument(
+        "--update",
+        action="store_true",
+        help="Re-fetch existing main rows except skip/done and replace SINTA journal rows for SINTA updates.",
     )
     fetch_journal.add_argument(
         "--db-path",
