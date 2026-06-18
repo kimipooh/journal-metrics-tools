@@ -28,7 +28,7 @@ Excel ワークブックベースの CLI ツールです。
 3. `journal` シートで候補を確認・確定する
 4. 検証済み TSV ファイルを生成する
 
-現在の実運用では SEALIB（東南アジア逐次刊行物総合目録データベース、https://sealib.cseas.kyoto-u.ac.jp/）のデータ構造を基盤としており、TSV 出力の列名（`sealib_name`、`sealib_id` 等）はこれを反映しています。SEALIB adapter は任意機能です。`main.id` / `main.issn` が事前に入力されていれば、SEALIB DB がなくても SINTA 取得・変換・出力を実行できます。
+現在の実運用では SEALIB（ 東南アジア逐次刊行物総合目録データベース、https://sealib.cseas.kyoto-u.ac.jp/ ）のデータ構造を基盤としており、TSV 出力の列名（`sealib_name`、`sealib_id` 等）はこれを反映しています。SEALIB adapter は任意機能です。`main.id` / `main.issn` が事前に入力されていれば、SEALIB DB がなくても SINTA 取得・変換・出力を実行できます。
 
 ### 用語説明
 
