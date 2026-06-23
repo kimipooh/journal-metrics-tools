@@ -33,9 +33,15 @@ A typical workflow:
 The current deployment uses SEALIB's data structure conventions — SEALIB (Southeast
 Asian Periodicals Database, https://sealib.cseas.kyoto-u.ac.jp/) provides bibliographic
 and holding information on Southeast Asian periodicals. TSV column names such as
-`sealib_name` and `sealib_id` reflect these conventions. The SEALIB database is not
-required: the SEALIB adapter supplements optional identifier fields (`main.id`,
-`main.issn`), but the SINTA fetch and export pipeline works without it.
+`sealib_name` and `sealib_id` reflect these conventions. The SEALIB adapter is optional:
+the SINTA fetch, convert, and export pipeline works without it.
+
+- `main.issn` / `main.eissn` are optional. They are used as disambiguation hints when
+  multiple SINTA candidates share the same title. SINTA search runs even without them,
+  but unresolvable cases are marked `multiple_candidates`.
+- `main.id` is not used during fetch. It is written to the `sealib_id` column at
+  convert / export time. If `main.id` is empty, `sealib_id` is also empty. Running
+  the SEALIB adapter can fill this field automatically.
 
 ---
 
@@ -135,13 +141,21 @@ research-tools/
 python journal_metrics.py template --output my_journals.xlsx
 
 # 2. Open my_journals.xlsx and fill in the `main` sheet:
-#    Required columns:
-#      name         — journal name used for database name matching
+#    * Required    = needed for the workflow (not enforced by code validation)
+#    * Recommended = improves matching accuracy
+#    * Optional    = may be omitted
+#
+#    Required:
+#      name         — primary key for journal matching (must be filled in normal use)
+#                     when using the SEALIB adapter, match the exact name in the SEALIB DB
 #      status       — leave blank or set to "pending"
 #    Recommended:
 #      search_query — search string passed to SINTA / other external adapters
-#      o_name       — original-language name (optional)
-#      issn         — Print ISSN (optional)
+#      issn         — Print ISSN (disambiguation hint; search runs without it)
+#      eissn        — Online ISSN (disambiguation hint; search runs without it)
+#    Optional:
+#      o_name       — original-language name
+#      id           — SEALIB DB internal ID (written as sealib_id at convert/export time)
 
 # 3. Fetch candidates using the built-in mock adapter
 python journal_metrics.py fetch-journal --input my_journals.xlsx --adapter mock

@@ -28,7 +28,10 @@ Excel ワークブックベースの CLI ツールです。
 3. `journal` シートで候補を確認・確定する
 4. 検証済み TSV ファイルを生成する
 
-現在の実運用では SEALIB（ 東南アジア逐次刊行物総合目録データベース、https://sealib.cseas.kyoto-u.ac.jp/ ）のデータ構造を基盤としており、TSV 出力の列名（`sealib_name`、`sealib_id` 等）はこれを反映しています。SEALIB adapter は任意機能です。`main.id` / `main.issn` が事前に入力されていれば、SEALIB DB がなくても SINTA 取得・変換・出力を実行できます。
+現在の実運用では SEALIB（ 東南アジア逐次刊行物総合目録データベース、https://sealib.cseas.kyoto-u.ac.jp/ ）のデータ構造を基盤としており、TSV 出力の列名（`sealib_name`、`sealib_id` 等）はこれを反映しています。SEALIB adapter は任意です。SINTA fetch・変換・出力は SEALIB DB なしで動作します。
+
+- `main.issn` / `main.eissn` は任意フィールドです。同名候補が複数ある場合の曖昧解消ヒントとして利用されます。未入力でも SINTA 検索は実行されますが、候補を1件に絞り込めない場合は `multiple_candidates` になります。
+- `main.id` は fetch では参照されません。convert / export-tsv 実行時に `sealib_id` として出力されます。`main.id` が空の場合、`sealib_id` も空で出力されます。SEALIB adapter を実行すると自動補完できます。
 
 ### 用語説明
 
@@ -135,13 +138,21 @@ research-tools/
 python journal_metrics.py template --output my_journals.xlsx
 
 # 2. Excel で my_journals.xlsx の main シートを編集
-#    必須列:
-#      name         — 雑誌名（SEALIB adapter を使う場合は DB の正式登録名に合わせる）
+#    ＊ 必須   = ワークフロー上入力が必要（プログラムによる空欄チェックはなし）
+#    ＊ 推奨   = 入力することでマッチング精度が向上
+#    ＊ 任意   = 省略可能
+#
+#    必須:
+#      name         — ジャーナル照合の主要キー。通常運用では入力が必要。
+#                     SEALIB adapter 利用時は DB の正式登録名に合わせること。
 #      status       — 空欄または "pending"
-#    推奨列:
+#    推奨:
 #      search_query — SINTA 等の外部 adapter に渡す検索語
-#      o_name       — 原語名（任意）
-#      issn         — Print ISSN（任意。SINTA 候補の ISSN 照合に使用）
+#      issn         — Print ISSN（同名候補の曖昧解消ヒント。なくても検索可能）
+#      eissn        — Online ISSN（同名候補の曖昧解消ヒント。なくても検索可能）
+#    任意:
+#      o_name       — 原語名
+#      id           — SEALIB DB 内部 ID（convert/export 時に sealib_id として出力）
 
 # 3. mock adapter で動作確認
 python journal_metrics.py fetch-journal --input my_journals.xlsx --adapter mock
