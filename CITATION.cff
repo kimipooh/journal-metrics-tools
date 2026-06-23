@@ -7,9 +7,9 @@ authors:
     given-names: Kimiya
     affiliation: Center for Southeast Asian Studies, Kyoto University
 license: MIT
-version: 1.0.1
-date-released: "2026-06-16"
-doi: 10.5281/zenodo.20717641
+version: 1.0.2
+date-released: "2026-06-23"
+doi: 10.5281/zenodo.20809346
 repository-code: https://github.com/kimipooh/journal-metrics-tools
 abstract: >
   A workbook-based CLI tool for collecting, reviewing, reconciling,

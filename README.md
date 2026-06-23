@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![README 日本語](https://img.shields.io/badge/README-日本語-green.svg)](README-ja.md)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20717641.svg)](https://doi.org/10.5281/zenodo.20717641)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20809346.svg)](https://doi.org/10.5281/zenodo.20809346)
 
 A workbook-based CLI tool for collecting, reviewing, reconciling, and exporting
 journal-related information from multiple sources.
@@ -342,7 +342,7 @@ Center for Southeast Asian Studies, Kyoto University
 If you use this tool in your research, please cite it as follows:
 
 ```
-Kitani, Kimiya. (2026). Journal Metrics Tools (Version 1.0.1) [Software]. Zenodo. https://doi.org/10.5281/zenodo.20717641
+Kitani, Kimiya. (2026). Journal Metrics Tools (Version 1.0.2) [Software]. Zenodo. https://doi.org/10.5281/zenodo.20809346
 ```
 
 A `CITATION.cff` file is included in this repository for use with citation managers.
