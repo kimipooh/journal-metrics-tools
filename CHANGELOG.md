@@ -6,6 +6,22 @@ This format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.3] - 2026-07-02
+
+Documentation scope cleanup. No functional changes — the implementation, adapters,
+workflow logic, and output formats remain unchanged.
+
+### Changed
+
+- Clarified in `README.md` / `README-ja.md` that the tool does not create, assign, or certify journal evaluation metrics by itself; it collects, converts, reviews, and validates metrics published by external assessment sources
+- Revised developer documentation (`docs/adapter-contract.md`, `docs/sinta-adapter-design.md`, `docs/grade-and-source-policy.md`) to describe the export workflow in source-neutral terms
+- `docs/adapter-contract.md` now includes a summary of the convert sheet columns, `convert_status` semantics, and TSV export criteria
+- Updated the Documentation Map in `AGENT.md` to reflect the reorganized `docs/` contents
+
+### Removed
+
+- Removed internal design notes and one-time audit records from `docs/` (rebuild plan, downstream-import design memos, validation layering notes, documentation inventory). These were development-phase working documents not intended for external users; the user-facing workflow guides and adapter specifications are unaffected
+
 ## [1.0.2] - 2026-06-23
 
 Documentation and DOI metadata update. No functional changes.
@@ -128,6 +144,7 @@ SEALIB adapter requires a SEALIB SQLite database file (optional; read-only).
 
 ---
 
+[1.0.3]: https://github.com/kimipooh/journal-metrics-tools/releases/tag/v1.0.3
 [1.0.2]: https://github.com/kimipooh/journal-metrics-tools/releases/tag/v1.0.2
 [1.0.1]: https://github.com/kimipooh/journal-metrics-tools/releases/tag/v1.0.1
 [1.0.0]: https://github.com/kimipooh/journal-metrics-tools/releases/tag/v1.0.0
