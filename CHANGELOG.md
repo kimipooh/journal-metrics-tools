@@ -6,6 +6,31 @@ This format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.2] - 2026-06-23
+
+Documentation and DOI metadata update. No functional changes.
+
+### Changed
+
+- Clarified the roles of `main` sheet fields in the documentation (required / recommended / optional)
+- Documented `main.issn` / `main.eissn` as optional disambiguation hints for SINTA matching; SINTA fetch works without them
+- Documented the role of `main.id` in convert/export workflows and `sealib_id` generation
+- Updated the citation and `CITATION.cff` metadata for v1.0.2
+
+### Removed
+
+- Removed a tracked generated workbook (`journal_metrics.xlsx`) and aligned repository contents with `.gitignore`
+
+## [1.0.1] - 2026-06-16
+
+Zenodo integration and citation metadata update. No functional changes.
+
+### Added
+
+- Zenodo DOI badge in `README.md` / `README-ja.md`
+- `CITATION.cff` citation metadata file
+- Citation section in `README.md` / `README-ja.md`
+
 ## [1.0.0] - 2026-06-16
 
 ### Added
@@ -103,4 +128,6 @@ SEALIB adapter requires a SEALIB SQLite database file (optional; read-only).
 
 ---
 
+[1.0.2]: https://github.com/kimipooh/journal-metrics-tools/releases/tag/v1.0.2
+[1.0.1]: https://github.com/kimipooh/journal-metrics-tools/releases/tag/v1.0.1
 [1.0.0]: https://github.com/kimipooh/journal-metrics-tools/releases/tag/v1.0.0

@@ -21,6 +21,8 @@ The tool uses an adapter-based architecture that supports different types of sou
 including bibliographic metadata sources and external journal assessment sources.
 SEALIB and SINTA are the currently implemented adapters, but the design is intentionally
 extensible — additional sources can be integrated without changing the core workflow.
+The tool does not create, assign, or certify journal evaluation metrics by itself; it
+collects, converts, reviews, and validates metrics published by external assessment sources.
 
 A typical workflow:
 

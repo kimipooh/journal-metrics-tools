@@ -134,7 +134,7 @@ Each candidate maps to one `journal` sheet row. Adapters do not perform Excel I/
 The following are **outside the scope** of this repository:
 
 - Database import (any system)
-- SEALIB Program2 (`03-2-import-metrics.php`) and related PHP scripts
+- SEALIB-side database import processing (PHP import scripts)
 - Writing to the SEALIB database
 - REST API or web interface
 - Automated scheduling or batch orchestration
@@ -183,22 +183,6 @@ breaking changes and coordinate explicitly.
 
 | File | Content |
 |---|---|
-| `docs/adapter-contract.md` | Adapter interface specification (envelope, candidate fields, status vocabulary) |
+| `docs/adapter-contract.md` | Adapter interface specification (envelope, candidate fields, status vocabulary); convert sheet and TSV export summary |
 | `docs/sinta-adapter-design.md` | SINTA adapter implementation design; `sinta-full-cli-v3` integration |
-
-### Internal Design Notes
-
-| File | Content |
-|---|---|
-| `docs/rebuild-plan.md` | Full rebuild plan; Phase history; architecture decisions |
-| `docs/convert-sheet-redesign.md` | `CONVERT_HEADERS` design rationale (Phase 4A) |
-| `docs/grade-and-source-policy.md` | `grade` / `metric_source` classification policy (Phase 6B) |
-| `docs/validation-layering.md` | `validate-tsv` vs downstream validation responsibility (Phase 5A-2) |
-
-### Archive (out of scope)
-
-| File | Reason |
-|---|---|
-| `docs/program2-dry-run-design.md` | Program2 is out of scope |
-| `docs/program2-resolution-strategy.md` | Program2 is out of scope |
-| `docs/sealib-api-oai-compatibility-audit.md` | One-time audit; SEALIB REST API not adopted |
+| `docs/grade-and-source-policy.md` | `grade` / `metric_source` classification policy |
