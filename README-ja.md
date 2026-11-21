@@ -29,7 +29,15 @@ Excel ワークブックベースの CLI ツールです。
 3. `journal` シートで候補を確認・確定する
 4. 検証済み TSV ファイルを生成する
 
-現在の実運用では SEALIB（ 東南アジア逐次刊行物総合目録データベース、https://sealib.cseas.kyoto-u.ac.jp/ ）のデータ構造を基盤としており、TSV 出力の列名（`sealib_name`、`sealib_id` 等）はこれを反映しています。SEALIB adapter は任意です。SINTA fetch・変換・出力は SEALIB DB なしで動作します。
+### SEALIB での実運用
+
+現在の実運用では、東南アジアの逐次刊行物の書誌・所蔵情報を提供する SEALIB（東南アジア逐次刊行物総合目録データベース、https://sealib.cseas.kyoto-u.ac.jp/）のデータ構造を基盤としています。TSV 出力の列名（`sealib_name`、`sealib_id` 等）はこれを反映しています。
+
+SEALIB では、本ツールを使って SINTA の情報を SEALIB の書誌情報と照合します。任意の SEALIB adapter は、ローカルの SQLite DB を読み取り専用で参照して書誌識別子を補完します。本ツールで取得した SINTA の候補を確認・確定し、結果を変換して TSV を出力・検証します。SINTA の取得・変換・出力は SEALIB DB なしでも実行できます。検証済み TSV の SEALIB DB への取り込みは SEALIB 側の工程です。
+
+SINTA の評価値は変動するため、最新の状態を保つには継続的な再取得・照合・更新が必要です。現在は SINTA の Web サイトから半自動で情報を取得しており、提供元との API 連携によるリアルタイム更新は利用していません。SEALIB の運用者は取得時点の評価値を照合・検討用として手元で保持します。
+
+SEALIB v3.5.0 以降、公開側の書誌詳細には評価元として SINTA を表示し、最新の評価を確認できる該当誌の SINTA 公式プロフィールへ案内します。取得した評価値と取得日は掲載しません。REST API v1 の仕様では、SINTA の `metrics` 要素に評価元と該当誌のプロフィール URL（`url`）を含め、互換性のため `grade` と `fetched_at` のキーは `null` で返します。
 
 - `main.issn` / `main.eissn` は任意フィールドです。同名候補が複数ある場合の曖昧解消ヒントとして利用されます。未入力でも SINTA 検索は実行されますが、候補を1件に絞り込めない場合は `multiple_candidates` になります。
 - `main.id` は fetch では参照されません。convert / export-tsv 実行時に `sealib_id` として出力されます。`main.id` が空の場合、`sealib_id` も空で出力されます。SEALIB adapter を実行すると自動補完できます。

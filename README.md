@@ -32,11 +32,30 @@ A typical workflow:
 3. Review and confirm candidates in the `journal` sheet
 4. Generate a validated TSV file for downstream database import
 
+### Current use in SEALIB
+
 The current deployment uses SEALIB's data structure conventions — SEALIB (Southeast
 Asian Periodicals Database, https://sealib.cseas.kyoto-u.ac.jp/) provides bibliographic
 and holding information on Southeast Asian periodicals. TSV column names such as
-`sealib_name` and `sealib_id` reflect these conventions. The SEALIB adapter is optional:
-the SINTA fetch, convert, and export pipeline works without it.
+`sealib_name` and `sealib_id` reflect these conventions.
+
+SEALIB uses this tool to match SINTA information to its bibliographic records. The
+optional SEALIB adapter reads a local SQLite database in read-only mode to supplement
+bibliographic identifiers. The tool retrieves SINTA candidates for review and
+confirmation, then converts the confirmed results and exports and validates the TSV.
+SINTA retrieval, conversion, and export can run without a SEALIB database. Importing
+the validated TSV into the SEALIB database is a separate step managed by SEALIB.
+
+SINTA accreditation can change, so keeping it current requires repeated collection,
+verification, and updates. The current workflow collects information semi-automatically
+from the SINTA website, with no real-time API integration with the provider. SEALIB
+operators keep a local copy of the retrieved values for matching and review.
+
+Starting with SEALIB v3.5.0, public bibliographic detail pages identify SINTA as the
+source and link to the journal's official SINTA profile for current accreditation.
+The public pages omit the collected grade and retrieval date. Under the REST API v1
+contract, SINTA entries in `metrics` provide the source and the journal's profile
+in `url`. They retain `grade` and `fetched_at` as `null` for compatibility.
 
 - `main.issn` / `main.eissn` are optional. They are used as disambiguation hints when
   multiple SINTA candidates share the same title. SINTA search runs even without them,
